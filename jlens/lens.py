@@ -72,8 +72,16 @@ def _find_blocks_and_norm(model):
 class _ResidualCapture:
     """Grab the residual stream entering block `layer` and entering the final norm.
 
-    Both are ordinary non-leaf tensors inside the autograd graph, which is all
-    torch.autograd.grad needs.
+    The anchor hook does not merely observe: it detaches the incoming residual
+    and re-attaches it as a leaf requiring grad, then hands that back as the
+    block's input. Two consequences, both wanted:
+
+      * The model's parameters can stay frozen. We differentiate with respect to
+        an activation, not the weights, so nothing else in the forward pass needs
+        requires_grad -- and without this trick a fully frozen model builds no
+        autograd graph at all and torch.autograd.grad raises.
+      * Only layers l..end are taped. Blocks before the anchor contribute nothing
+        to dh_final/dh_l, so retaining their graph would be wasted memory.
     """
 
     def __init__(self, model, layer: int):
@@ -81,15 +89,26 @@ class _ResidualCapture:
         self.h_l = None
         self.h_final = None
         self._handles = [
-            blocks[layer].register_forward_pre_hook(self._anchor),
-            norm.register_forward_pre_hook(self._final),
+            blocks[layer].register_forward_pre_hook(self._anchor, with_kwargs=True),
+            norm.register_forward_pre_hook(self._final, with_kwargs=True),
         ]
 
-    def _anchor(self, module, args):
-        self.h_l = args[0]
+    def _anchor(self, module, args, kwargs):
+        if args:
+            h = args[0].detach().requires_grad_(True)
+            self.h_l = h
+            return (h,) + args[1:], kwargs
+        if "hidden_states" in kwargs:
+            h = kwargs["hidden_states"].detach().requires_grad_(True)
+            self.h_l = h
+            return args, {**kwargs, "hidden_states": h}
+        raise RuntimeError(
+            "Decoder block received no positional input and no `hidden_states` "
+            "kwarg; the hook cannot find the residual stream."
+        )
 
-    def _final(self, module, args):
-        self.h_final = args[0]
+    def _final(self, module, args, kwargs):
+        self.h_final = args[0] if args else kwargs.get("hidden_states")
 
     def close(self):
         for h in self._handles:

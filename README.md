@@ -53,3 +53,15 @@ Core lens computation written, not yet run. Step 0 is unstarted.
   `hidden_states[-1]` here computes a different Jacobian and looks fine.
 - `data/prompts.txt` is the fixed 64-prompt set. Use the same one at every
   checkpoint so prompt noise cancels in the comparison.
+
+## Verified so far
+
+`tests/test_lens_math.py` checks the claim the project rests on, against a
+brute-force Jacobian on a 135M model:
+
+- one backward pass seeded at every final position == the explicit sum over
+  `t' >= t` of per-position backward passes (rel. error ~2e-6, float32 noise)
+- seeding position 0 alone leaks exactly zero gradient to `t > 0`, confirming the
+  causal mask makes the `t' >= t` restriction implicit
+
+Run it with `PYTHONPATH=. .venv/bin/python tests/test_lens_math.py`.
