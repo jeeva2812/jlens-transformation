@@ -1,0 +1,16 @@
+[project]
+name = "jlens-transformation"
+version = "0.1.0"
+description = "How J-Lens moves across training checkpoints"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.4",
+    "transformers>=4.45",
+    "accelerate",
+    "numpy",
+    "matplotlib",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
