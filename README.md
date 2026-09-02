@@ -44,3 +44,12 @@ deletes each one after use.
 ## Status
 
 Core lens computation written, not yet run. Step 0 is unstarted.
+
+### Known-correct-so-far
+
+- Residuals are taken off forward hooks, not `output_hidden_states`. HF returns
+  the POST-norm final hidden state (`Olmo3Model.forward` calls `self.norm(...)`
+  after the decoder loop), and J-Lens needs the PRE-norm residual. Using
+  `hidden_states[-1]` here computes a different Jacobian and looks fine.
+- `data/prompts.txt` is the fixed 64-prompt set. Use the same one at every
+  checkpoint so prompt noise cancels in the comparison.

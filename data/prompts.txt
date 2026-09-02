@@ -1,0 +1,64 @@
+The capital city of France is Paris, which sits on the river Seine.
+In 1969 the Apollo 11 mission landed the first humans on the surface of the Moon.
+Water boils at one hundred degrees Celsius at standard atmospheric pressure.
+def quicksort(arr): if len(arr) <= 1: return arr; pivot = arr[len(arr) // 2]
+The mitochondrion is often described as the powerhouse of the cell.
+She opened the letter slowly, unsure whether she wanted to read what was inside.
+Interest rates rose again this quarter, tightening conditions for borrowers.
+The Treaty of Westphalia in 1648 is often taken to mark the birth of the modern state.
+import numpy as np\nx = np.linspace(0, 1, 100)\ny = np.sin(2 * np.pi * x)
+A right triangle with legs of length 3 and 4 has a hypotenuse of length 5.
+The patient presented with a persistent cough and mild fever lasting six days.
+Photosynthesis converts light energy into chemical energy stored in glucose.
+He argued that the policy would be counterproductive over any reasonable horizon.
+The Great Barrier Reef is the largest coral reef system in the world.
+SELECT name, COUNT(*) FROM orders GROUP BY name HAVING COUNT(*) > 5;
+Shakespeare wrote approximately thirty-seven plays during his working life.
+The derivative of x squared with respect to x is two x.
+Rain fell steadily through the afternoon and into the early evening.
+Machine learning models are trained by minimising a loss function over data.
+The Roman Empire reached its greatest territorial extent under Trajan.
+Please review the attached document and let me know if anything needs changing.
+Neurons communicate across synapses using chemical neurotransmitters.
+The stock closed down two percent on lower than average trading volume.
+git rebase -i HEAD~3 lets you edit the last three commits interactively.
+Antarctica is the coldest, driest and windiest continent on Earth.
+The novel follows three siblings over the course of a single summer.
+Enzymes lower the activation energy required for a chemical reaction.
+A prime number has exactly two distinct positive divisors.
+The committee met on Tuesday to discuss the proposed budget revisions.
+Gravity causes objects to accelerate toward one another proportionally to mass.
+class Node: def __init__(self, value): self.value = value; self.next = None
+The Renaissance began in Italy during the fourteenth century.
+Users reported that the application crashed when opening large files.
+Photosensitive cells in the retina convert light into electrical signals.
+Inflation measures the rate at which the general price level rises.
+The bridge was closed for repairs following the structural inspection.
+Bacteria reproduce by binary fission, splitting into two identical cells.
+The algorithm runs in O(n log n) time and O(n) auxiliary space.
+Mount Everest stands at roughly 8,849 metres above sea level.
+Her argument rested on an assumption that nobody in the room accepted.
+The immune system distinguishes self from non-self using surface markers.
+Electricity flows more readily through copper than through iron.
+The meeting was rescheduled to Thursday morning at nine o'clock.
+Plate tectonics explains the distribution of earthquakes and volcanoes.
+A sorted array can be searched in logarithmic time using binary search.
+The painting hung in the same gallery for over forty years.
+Vaccines work by training the immune system to recognise a pathogen.
+Supply and demand jointly determine the equilibrium price in a market.
+He could not decide whether the silence meant agreement or discomfort.
+The compiler emitted a warning about an unused variable in the loop.
+Ocean currents redistribute heat between the equator and the poles.
+Latin was the administrative language of much of medieval Europe.
+The experiment was repeated three times to check for reproducibility.
+Chlorophyll absorbs red and blue light while reflecting green.
+Please confirm receipt of this message at your earliest convenience.
+The theorem holds for any continuous function on a closed interval.
+Migration patterns shifted noticeably over the last two decades.
+Steel is an alloy of iron and carbon with improved tensile strength.
+The witness described events that contradicted the earlier testimony.
+Recursion requires a base case to terminate, or the stack will overflow.
+Deserts receive less than 250 millimetres of precipitation annually.
+The orchestra tuned briefly before the conductor raised his baton.
+Antibiotics are ineffective against infections caused by viruses.
+Encryption protects data in transit from being read by third parties.

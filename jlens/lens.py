@@ -15,14 +15,22 @@ i.e. one vector-Jacobian product seeded with token k's unembedding row. For K
 tokens of interest that is K backward passes per prompt instead of d_model.
 Pick K ~ 50 concept tokens and the whole thing runs in minutes.
 
-Two details that are easy to get wrong and are load-bearing:
+Three details that are easy to get wrong and are load-bearing:
 
-1. Causality does the t' >= t sum for us. Seed *every* final-layer position with
+1. h_final must be the residual stream BEFORE the model's final norm. The J-Lens
+   readout is softmax(W_U norm(J_l h_l)) -- the norm is applied to the
+   transported vector at readout time, so J itself must map into the pre-norm
+   space. HuggingFace's output_hidden_states[-1] is POST-norm (Olmo3Model.forward
+   calls self.norm(hidden_states) after the decoder loop and returns that), so
+   using it here silently computes the wrong Jacobian. We take the residuals off
+   forward hooks instead, which does not depend on hidden_states semantics at all.
+
+2. Causality does the t' >= t sum for us. Seed *every* final-layer position with
    the same v and take one backward pass; the gradient landing at anchor
    position t is already sum_{t' >= t} J[t,t']^T v, because the causal mask has
    zeroed the terms with t' < t. We do not need a loop over t'.
 
-2. The number of valid t' depends on t. Anchor position t in a length-T
+3. The number of valid t' depends on t. Anchor position t in a length-T
    sequence has (T - t) downstream positions, so a raw sum over-weights early
    positions. We divide position-wise before averaging.
 """
@@ -44,26 +52,54 @@ class LensSpec:
     max_len: int = 128          # truncate prompts to this many tokens
 
 
-def _residual_and_final(model, input_ids, attention_mask, layer):
-    """Run a forward pass and hand back (h_l, h_final), both inside the graph.
+def _find_blocks_and_norm(model):
+    """Locate the decoder block list and the final norm module.
 
-    h_l is the residual stream entering block `layer`; h_final is the last
-    hidden state. Both come from output_hidden_states, so they are ordinary
-    non-leaf tensors and torch.autograd.grad can differentiate through them.
-
-    VERIFY BEFORE TRUSTING: for some architectures hidden_states[-1] is taken
-    *after* the final norm and for others before. J-Lens applies the norm at
-    readout time, so we want the pre-norm residual here. Check this against the
-    model's own forward() source before running anything real -- if it is wrong,
-    every number downstream is wrong and nothing will look obviously broken.
+    Kept deliberately noisy: if the architecture does not match what we expect,
+    we want a loud failure here rather than a quiet wrong number later.
     """
-    out = model(
-        input_ids=input_ids,
-        attention_mask=attention_mask,
-        output_hidden_states=True,
-        use_cache=False,
-    )
-    return out.hidden_states[layer], out.hidden_states[-1]
+    inner = getattr(model, "model", model)
+    blocks = getattr(inner, "layers", None)
+    norm = getattr(inner, "norm", None) or getattr(inner, "final_layernorm", None)
+    if blocks is None or norm is None:
+        raise RuntimeError(
+            f"Could not locate decoder layers / final norm on {type(model).__name__}. "
+            "Inspect the model and set them explicitly before running anything."
+        )
+    return blocks, norm
+
+
+class _ResidualCapture:
+    """Grab the residual stream entering block `layer` and entering the final norm.
+
+    Both are ordinary non-leaf tensors inside the autograd graph, which is all
+    torch.autograd.grad needs.
+    """
+
+    def __init__(self, model, layer: int):
+        blocks, norm = _find_blocks_and_norm(model)
+        self.h_l = None
+        self.h_final = None
+        self._handles = [
+            blocks[layer].register_forward_pre_hook(self._anchor),
+            norm.register_forward_pre_hook(self._final),
+        ]
+
+    def _anchor(self, module, args):
+        self.h_l = args[0]
+
+    def _final(self, module, args):
+        self.h_final = args[0]
+
+    def close(self):
+        for h in self._handles:
+            h.remove()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
 
 
 def lens_vectors(model, batches, spec: LensSpec) -> torch.Tensor:
@@ -80,12 +116,18 @@ def lens_vectors(model, batches, spec: LensSpec) -> torch.Tensor:
     n_seen = 0
 
     for input_ids, attention_mask in batches:
-        h_l, h_final = _residual_and_final(model, input_ids, attention_mask, spec.layer)
+        with _ResidualCapture(model, spec.layer) as cap:
+            model(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
+            h_l, h_final = cap.h_l, cap.h_final
+
+        if h_l is None or h_final is None:
+            raise RuntimeError("Hooks did not fire -- check the module paths.")
 
         B, T, _ = h_final.shape
         # weight[t] = 1 / (number of downstream positions t' >= t)
         idx = torch.arange(T, device=h_final.device)
-        weight = 1.0 / (T - idx).clamp(min=1).to(h_final.dtype)     # (T,)
+        weight = (1.0 / (T - idx).clamp(min=1)).to(h_final.dtype)      # (T,)
+        mask = attention_mask.unsqueeze(-1)
 
         for k, v in enumerate(seeds):
             # Seed every final position with v. The causal mask means the
@@ -99,16 +141,14 @@ def lens_vectors(model, batches, spec: LensSpec) -> torch.Tensor:
                 retain_graph=True,     # reused across the K seeds
             )
             # g: (B, T, d_model) -- g[b, t] = sum_{t' >= t} J[b, t, t']^T v
-            g = g * weight.view(1, T, 1)
-
-            mask = attention_mask.unsqueeze(-1).to(g.dtype)
-            total[k] += (g * mask).sum(dim=(0, 1)).float().cpu()
+            g = g * weight.view(1, T, 1) * mask.to(g.dtype)
+            total[k] += g.sum(dim=(0, 1)).float().cpu()
 
         n_seen += int(attention_mask.sum().item())
 
-        # Free the graph before the next batch.
         del h_l, h_final
-        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     return total / max(n_seen, 1)
 
@@ -116,12 +156,12 @@ def lens_vectors(model, batches, spec: LensSpec) -> torch.Tensor:
 def readout(lens_block: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
     """Score each of the K tokens for an activation h.
 
-    This is the linearised readout: <W_U J_l>[k] . h. The paper's full readout
-    is softmax(W_U norm(J_l h)), which applies the model's final norm to the
+    This is the linearised readout: (W_U J_l)[k] . h. The paper's full readout
+    is softmax(W_U norm(J_l h_l)), which applies the model's final norm to the
     transported vector first. The linear version is what you want for *diffing*
-    lenses across checkpoints (the norm is a per-activation rescale and would
-    muddy a comparison between two lenses); use the full readout when you want
-    an actual token distribution to look at.
+    lenses across checkpoints -- the norm is a per-activation rescale and would
+    muddy a comparison between two lenses. Use the full readout when you want an
+    actual token distribution to eyeball.
     """
     return lens_block.to(h.dtype) @ h
 
@@ -129,9 +169,10 @@ def readout(lens_block: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
 def cosine_drift(lens_a: torch.Tensor, lens_b: torch.Tensor) -> torch.Tensor:
     """Per-token cosine similarity between two lens blocks.
 
-    This is the primary quantity: how far has each lens vector rotated between
-    two checkpoints. Returns a (K,) tensor. A value near 1 means the lens for
-    that concept did not move.
+    The primary quantity: how far each lens vector has rotated between two
+    checkpoints. Returns a (K,) tensor; near 1 means that concept's lens did not
+    move. Interpretable only against the random-data control, since any weight
+    update perturbs a prompt-averaged estimator somewhat.
     """
     a = torch.nn.functional.normalize(lens_a.float(), dim=-1)
     b = torch.nn.functional.normalize(lens_b.float(), dim=-1)
