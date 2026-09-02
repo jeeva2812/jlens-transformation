@@ -62,7 +62,6 @@ class LensSpec:
     """
 
     layer: int                  # which residual-stream layer to anchor at
-    token_ids: list[int]        # the K vocabulary tokens we want lens rows for
     target_layer: int           # J maps h_layer -> h_target_layer (J is I at target)
     n_prompts: int = 25         # how many prompts to average the expectation over
     max_len: int = 128          # truncate prompts to this many tokens
@@ -144,17 +143,27 @@ class _ResidualCapture:
         self.close()
 
 
-def lens_vectors(model, batches, spec: LensSpec) -> torch.Tensor:
-    """Compute the K x d_model block of  W_U @ J_l  for the tokens in `spec`.
+def lens_vectors(model, batches, spec: LensSpec, seeds: torch.Tensor) -> torch.Tensor:
+    """Compute  J_l^T @ seeds  -- one transported row per seed vector.
+
+    `seeds` is (K, d_model). Two things you might pass:
+
+      * `token_seeds(...)`: rows of W_U, giving the lens vectors for particular
+        vocabulary tokens. Use a FIXED W_U across checkpoints -- W_U is trained
+        too, so per-checkpoint rows would conflate unembedding drift with the
+        transport drift we are actually measuring.
+      * `random_seeds(...)`: random unit vectors, which measure how J rotates as
+        an operator without committing to any choice of concept. Better for the
+        "did the transport move" question; token seeds are for interpreting what
+        a movement means once you know it happened.
 
     `batches` is an iterable of (input_ids, attention_mask) already on device.
     Returns a (K, d_model) float32 tensor on CPU.
     """
-    W_U = model.get_output_embeddings().weight          # (vocab, d_model)
-    seeds = W_U[spec.token_ids].detach()                # (K, d_model)
+    seeds = seeds.detach()
     d_model = seeds.shape[1]
 
-    total = torch.zeros(len(spec.token_ids), d_model, dtype=torch.float32)
+    total = torch.zeros(seeds.shape[0], d_model, dtype=torch.float32)
     # n_seen counts PROMPTS, not positions: the reduction is a per-prompt mean
     # over source positions, then a mean over prompts.
     n_seen = 0
@@ -247,3 +256,27 @@ def cosine_drift(lens_a: torch.Tensor, lens_b: torch.Tensor) -> torch.Tensor:
     a = torch.nn.functional.normalize(lens_a.float(), dim=-1)
     b = torch.nn.functional.normalize(lens_b.float(), dim=-1)
     return (a * b).sum(dim=-1)
+
+
+def token_seeds(model, token_ids) -> torch.Tensor:
+    """Rows of W_U for the given tokens -- the classic J-Lens vectors.
+
+    Across a checkpoint sweep, take these from ONE reference checkpoint and
+    reuse them everywhere. W_U is trained, so recomputing per checkpoint mixes
+    unembedding drift into a measurement meant to be about J alone.
+    """
+    return model.get_output_embeddings().weight[token_ids].detach()
+
+
+def random_seeds(d_model: int, k: int, *, seed: int = 0, device="cpu",
+                 dtype=torch.float32) -> torch.Tensor:
+    """K random unit vectors, for measuring how J rotates as an operator.
+
+    No concept choice to justify, and it probes J in general directions rather
+    than the handful a person happened to pick. Fixed `seed` so the same probe
+    set is reused at every checkpoint -- otherwise the probes themselves become
+    a source of drift.
+    """
+    g = torch.Generator(device="cpu").manual_seed(seed)
+    v = torch.randn(k, d_model, generator=g)
+    return torch.nn.functional.normalize(v, dim=-1).to(device=device, dtype=dtype)

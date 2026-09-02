@@ -25,7 +25,7 @@ import torch
 from huggingface_hub import hf_hub_download
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from .lens import LensSpec, lens_vectors
+from .lens import LensSpec, lens_vectors, token_seeds
 
 LENS_REPO = "camilablank/workspace-lenses"
 LENS_FILE = "qwen3.5-4b/j-lens/lens.pt"
@@ -114,14 +114,14 @@ def main():
 
         spec = LensSpec(
             layer=args.layer,
-            token_ids=token_ids,
             target_layer=target_layer,
             n_prompts=n_prompts,
             max_len=max_len,
             skip_first=skip_first,
             weighting=weighting,
         )
-        mine = lens_vectors(model, batches(), spec).float()
+        seeds = token_seeds(model, token_ids)
+        mine = lens_vectors(model, batches(), spec, seeds).float()
 
         cos = torch.nn.functional.cosine_similarity(mine, reference, dim=-1)
         scale = (mine.norm(dim=-1) / reference.norm(dim=-1).clamp(min=1e-9))

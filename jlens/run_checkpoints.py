@@ -19,7 +19,7 @@ from pathlib import Path
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from .lens import LensSpec, lens_vectors
+from .lens import LensSpec, lens_vectors, token_seeds
 
 
 # A first pass at concept tokens. These are placeholders -- choose your own and
@@ -66,6 +66,7 @@ def main():
     ap.add_argument("--model", required=True)
     ap.add_argument("--revisions", nargs="+", required=True)
     ap.add_argument("--layer", type=int, required=True)
+    ap.add_argument("--target-layer", type=int, required=True)
     ap.add_argument("--prompts", type=Path, default=None)
     ap.add_argument("--n-prompts", type=int, default=64)
     ap.add_argument("--max-len", type=int, default=128)
@@ -117,12 +118,12 @@ def main():
 
         spec = LensSpec(
             layer=args.layer,
-            token_ids=token_ids,
+            target_layer=args.target_layer,
             n_prompts=args.n_prompts,
             max_len=args.max_len,
         )
         batches = build_batches(tokenizer, prompts, args.max_len, device)
-        block = lens_vectors(model, batches, spec)
+        block = lens_vectors(model, batches, spec, token_seeds(model, token_ids))
 
         torch.save({"revision": rev, "lens": block, **meta}, dest)
         print(f"[save] {dest}  shape={tuple(block.shape)}")

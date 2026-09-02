@@ -43,6 +43,10 @@ app = modal.App("jlens-transformation", image=image)
 
 MODEL = "allenai/Olmo-3-1025-7B"
 
+# Token probes are built from ONE checkpoint's unembedding and reused at every
+# other, so that drift in W_U cannot masquerade as drift in J.
+REF_REVISION = "main"
+
 # Log-spaced across the full 1.41M-step stage-1 trajectory. Representational
 # change is fastest early, so even spacing would spend most of the budget on the
 # flat tail.
@@ -103,12 +107,33 @@ def _prompts(n: int):
     return [ds[i]["text"] for i in range(n)]
 
 
+def _reference_unembed(token_ids):
+    """W_U rows from REF_REVISION, cached on the volume so every worker agrees."""
+    from pathlib import Path
+
+    import torch
+    from transformers import AutoModelForCausalLM
+
+    cached = Path(CACHE) / "ref_unembed.pt"
+    if cached.exists():
+        return torch.load(cached, map_location="cpu", weights_only=True)
+
+    m = AutoModelForCausalLM.from_pretrained(
+        MODEL, revision=REF_REVISION, dtype=torch.bfloat16, cache_dir=CACHE
+    )
+    rows = m.get_output_embeddings().weight[token_ids].detach().float().cpu()
+    torch.save(rows, cached)
+    volume.commit()
+    del m
+    return rows
+
+
 @app.function(gpu="A100-40GB", volumes={CACHE: volume}, timeout=45 * 60)
 def preflight():
     """At layer == target, J is the identity, so the lens must equal W_U rows."""
     import torch
 
-    from jlens.lens import LensSpec, lens_vectors
+    from jlens.lens import LensSpec, lens_vectors, token_seeds
 
     model, tok, token_ids, target = _setup("main")
     texts = _prompts(4)
@@ -118,11 +143,8 @@ def preflight():
             enc = tok(t, return_tensors="pt", truncation=True, max_length=128)
             yield enc["input_ids"].cuda(), enc["attention_mask"].cuda()
 
-    spec = LensSpec(
-        layer=target, token_ids=token_ids, target_layer=target,
-        n_prompts=len(texts), max_len=128,
-    )
-    got = lens_vectors(model, batches(), spec).float()
+    spec = LensSpec(layer=target, target_layer=target, n_prompts=len(texts), max_len=128)
+    got = lens_vectors(model, batches(), spec, token_seeds(model, token_ids)).float()
     want = model.get_output_embeddings().weight[token_ids].detach().float().cpu()
 
     cos = torch.nn.functional.cosine_similarity(got, want, dim=-1).mean().item()
@@ -141,14 +163,26 @@ def preflight():
     timeout=60 * 60,
     scaledown_window=60,        # never sit idle holding a GPU
 )
-def lens_at_revision(revision: str, layer: int, n_prompts: int = 25, max_len: int = 128):
+def lens_at_revision(
+    revision: str, layer: int, probe: str = "random",
+    n_prompts: int = 25, max_len: int = 128,
+):
+    """Compute one checkpoint's transported rows.
+
+    probe='random' measures how J rotates as an operator -- no concept choice to
+    justify, and it probes general directions rather than a hand-picked handful.
+    probe='token' uses W_U rows, and deliberately takes them from a SINGLE
+    reference checkpoint (REF_REVISION) rather than the current one: W_U is
+    trained too, so per-checkpoint rows would mix unembedding drift into a
+    measurement that is supposed to be about the transport alone.
+    """
     from pathlib import Path
 
     import torch
 
-    from jlens.lens import LensSpec, lens_vectors
+    from jlens.lens import LensSpec, lens_vectors, random_seeds, token_seeds
 
-    out = Path("/out") / f"L{layer}_{revision.replace('/', '_')}.pt"
+    out = Path("/out") / f"{probe}_L{layer}_{revision.replace('/', '_')}.pt"
     if out.exists():
         print(f"[skip] {revision}")
         return revision
@@ -162,16 +196,28 @@ def lens_at_revision(revision: str, layer: int, n_prompts: int = 25, max_len: in
             enc = tok(t, return_tensors="pt", truncation=True, max_length=max_len)
             yield enc["input_ids"].cuda(), enc["attention_mask"].cuda()
 
+    if probe == "random":
+        # d_model straight off the unembedding: config field names are nested
+        # differently across these architectures and have already bitten us once.
+        d_model = model.get_output_embeddings().weight.shape[1]
+        seeds = random_seeds(d_model, 32, seed=0, device="cuda", dtype=torch.bfloat16)
+        labels = [f"r{i}" for i in range(seeds.shape[0])]
+    elif probe == "token":
+        seeds = _reference_unembed(token_ids).cuda().to(torch.bfloat16)
+        labels = CONCEPTS
+    else:
+        raise ValueError(f"unknown probe {probe!r}")
+
     spec = LensSpec(
-        layer=layer, token_ids=token_ids, target_layer=target,
-        n_prompts=n_prompts, max_len=max_len,
+        layer=layer, target_layer=target, n_prompts=n_prompts, max_len=max_len,
     )
-    block = lens_vectors(model, batches(), spec)
+    block = lens_vectors(model, batches(), spec, seeds)
 
     torch.save(
         {
             "revision": revision, "model": MODEL, "layer": layer,
-            "target_layer": target, "concepts": CONCEPTS, "token_ids": token_ids,
+            "target_layer": target, "probe": probe, "labels": labels,
+            "ref_revision": REF_REVISION if probe == "token" else None,
             "n_prompts": n_prompts, "max_len": max_len, "lens": block,
         },
         out,
@@ -182,8 +228,8 @@ def lens_at_revision(revision: str, layer: int, n_prompts: int = 25, max_len: in
 
 
 @app.local_entrypoint()
-def main(layer: int = 20, revisions: str = ""):
+def main(layer: int = 20, probe: str = "random", revisions: str = ""):
     revs = [r.strip() for r in revisions.split(",") if r.strip()] or REVISIONS
-    print(f"layer {layer}, {len(revs)} revisions on {MODEL}")
-    for done in lens_at_revision.starmap([(r, layer) for r in revs]):
+    print(f"layer {layer}, probe={probe}, {len(revs)} revisions on {MODEL}")
+    for done in lens_at_revision.starmap([(r, layer, probe) for r in revs]):
         print(f"[done] {done}")

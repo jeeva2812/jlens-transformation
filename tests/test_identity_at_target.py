@@ -18,7 +18,7 @@ import argparse
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
-from jlens.lens import LensSpec, lens_vectors
+from jlens.lens import LensSpec, lens_vectors, token_seeds
 
 WORDS = [" Paris", " water", " because", " safe", " true", " one"]
 
@@ -65,10 +65,10 @@ def main():
             yield enc["input_ids"].to(device), enc["attention_mask"].to(device)
 
     spec = LensSpec(
-        layer=layer, token_ids=token_ids, target_layer=target,
+        layer=layer, target_layer=target,
         n_prompts=len(texts), max_len=128, skip_first=4, weighting="uniform",
     )
-    got = lens_vectors(model, batches(), spec).float()
+    got = lens_vectors(model, batches(), spec, token_seeds(model, token_ids)).float()
     want = model.get_output_embeddings().weight[token_ids].detach().float().cpu()
 
     cos = torch.nn.functional.cosine_similarity(got, want, dim=-1)
