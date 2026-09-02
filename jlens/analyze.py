@@ -39,12 +39,32 @@ from pathlib import Path
 import torch
 
 
+# Olmo 3 7B stage lengths, so steps from different stages land on one axis.
+# Without this a stage-2 step 1000 sorts before a stage-1 step 2000 and the
+# trajectory comes out interleaved nonsense.
+STAGE_END = {1: 1_413_814, 2: 47_684, 3: 11_921}
+STAGE_OFFSET = {
+    1: 0,
+    2: STAGE_END[1],
+    3: STAGE_END[1] + STAGE_END[2],
+}
+TOTAL_STEPS = STAGE_END[1] + STAGE_END[2] + STAGE_END[3]
+
+
 def step_of(revision: str) -> int:
-    """Sort key. 'main' is the end of training, so it sorts last."""
+    """Cumulative training step across all three stages."""
     if revision == "main":
-        return 10**9
-    m = re.search(r"step(\d+)", revision)
-    return int(m.group(1)) if m else -1
+        return TOTAL_STEPS          # main == end of stage 3 (verified: dev == 1.0)
+    m = re.match(r"stage(\d+)-step(\d+)", revision)
+    if not m:
+        return -1
+    stage, step = int(m.group(1)), int(m.group(2))
+    return STAGE_OFFSET.get(stage, 0) + step
+
+
+def stage_of(revision: str) -> int:
+    m = re.match(r"stage(\d+)-", revision)
+    return int(m.group(1)) if m else 3
 
 
 def load_dir(d: Path):
@@ -55,6 +75,8 @@ def load_dir(d: Path):
         if re.search(r"_p\d+\.pt$", f.name):
             continue
         rec = torch.load(f, map_location="cpu", weights_only=False)
+        if "lens" not in rec:
+            continue        # readout_*.pt holds token tables, not a lens block
         items.append((step_of(rec["revision"]), rec["revision"], rec["lens"].float()))
     items.sort(key=lambda x: x[0])
     if not items:
@@ -133,15 +155,19 @@ def main():
         import matplotlib.pyplot as plt
 
         steps = [max(r[0], 1) for r in rows]
-        fig, ax = plt.subplots(figsize=(7.4, 4.4))
-        ax.semilogx(steps, [r[1] for r in rows], "o--", c="0.6",
+        fig, ax = plt.subplots(figsize=(8.2, 4.6))
+        for b, name in [(STAGE_OFFSET[2], "stage 2\nmidtraining"),
+                        (STAGE_OFFSET[3], "stage 3\nlong ctx")]:
+            ax.axvline(b, c="0.75", lw=1)
+            ax.text(b * 1.04, 0.05, name, fontsize=8, c="0.45", va="bottom")
+        ax.semilogx(steps, [r[1] for r in rows], "o--", c="0.65", ms=4,
                     label="raw cosine (masked by identity path)")
-        ax.semilogx(steps, [r[2] for r in rows], "o-", c="#0B6E78",
+        ax.semilogx(steps, [r[2] for r in rows], "o-", c="#0B6E78", ms=5,
                     label="identity subtracted: $(J-I)^Tv$")
         if floor is not None:
             ax.axhline(floor, ls=":", c="crimson",
                        label=f"noise floor ({floor:.4f})")
-        ax.set_xlabel("training step (log scale; last point = main, after stage 2+3)")
+        ax.set_xlabel("cumulative training step (log scale)")
         ax.set_ylabel("cosine vs final lens")
         ax.set_ylim(-0.05, 1.05)
         ax.set_title("What J-Lens learns, and when")

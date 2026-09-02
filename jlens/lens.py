@@ -280,3 +280,178 @@ def random_seeds(d_model: int, k: int, *, seed: int = 0, device="cpu",
     g = torch.Generator(device="cpu").manual_seed(seed)
     v = torch.randn(k, d_model, generator=g)
     return torch.nn.functional.normalize(v, dim=-1).to(device=device, dtype=dtype)
+
+
+def full_jacobian(model, batches, spec: LensSpec, *, chunk: int = 128) -> torch.Tensor:
+    """Materialise the whole (d_model x d_model) J_l.
+
+    The partial path takes K backward passes for K probes. Here we want every
+    row, because a readout needs scores for the entire vocabulary and
+    score(token k) = <row k of W_U J, h>. That is d_model seeds -- 4096 for a 7B
+    -- which is only affordable because torch can batch cotangents: one call
+    with `is_grads_batched=True` runs `chunk` of them at once via vmap, turning
+    ~4096 backward passes per prompt into ~32 batched ones.
+
+    Seeding with the basis vector e_k gives row k of J, since (J^T e_k)_j = J_kj.
+    """
+    d_model = model.get_output_embeddings().weight.shape[1]
+    total = torch.zeros(d_model, d_model, dtype=torch.float32)
+    n_seen = 0
+
+    for input_ids, attention_mask in batches:
+        with _ResidualCapture(model, spec.layer, spec.target_layer) as cap:
+            with torch.enable_grad():
+                model(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
+            h_l, h_final = cap.h_l, cap.h_final
+        if h_l is None or h_final is None:
+            raise RuntimeError("Hooks did not fire -- check the module paths.")
+
+        B, T, _ = h_final.shape
+        idx = torch.arange(T, device=h_final.device)
+        lengths = attention_mask.sum(dim=1, keepdim=True)
+        valid = (idx.unsqueeze(0) >= spec.skip_first) & (idx.unsqueeze(0) < lengths - 1)
+        valid = valid & attention_mask.bool()
+        counts = valid.sum(dim=1).clamp(min=1).unsqueeze(-1)
+
+        eye = torch.eye(d_model, device=h_final.device, dtype=h_final.dtype)
+        for s in range(0, d_model, chunk):
+            block = eye[s : s + chunk]                       # (C, d_model)
+            C = block.shape[0]
+            grad_out = block.view(C, 1, 1, d_model).expand(C, B, T, d_model)
+            (g,) = torch.autograd.grad(
+                outputs=h_final, inputs=h_l, grad_outputs=grad_out,
+                retain_graph=True, is_grads_batched=True,
+            )                                                 # (C, B, T, d_model)
+            g = g * valid.unsqueeze(0).unsqueeze(-1).to(g.dtype)
+            per_prompt = g.sum(dim=2) / counts.unsqueeze(0).to(g.dtype)   # (C,B,d_model)
+            total[s : s + C] += per_prompt.sum(dim=1).float().cpu()
+
+        n_seen += B
+        del h_l, h_final
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    return total / max(n_seen, 1)
+
+
+def readout(model, J: torch.Tensor, h: torch.Tensor, k: int = 8):
+    """The J-Lens readout: softmax(W_U norm(J h)) -> top-k tokens.
+
+    `h` is (..., d_model) taken at the SAME point J was anchored (the output of
+    block spec.layer). The norm is the model's own final norm, applied to the
+    transported vector, exactly as in the paper's formula.
+    """
+    _, norm = _find_blocks_and_norm(model)
+    W_U = model.get_output_embeddings().weight
+
+    dev = W_U.device
+    transported = h.to(dev, W_U.dtype) @ J.to(dev, W_U.dtype).T   # (..., d_model)
+    with torch.no_grad():
+        logits = norm(transported) @ W_U.T
+        probs = torch.softmax(logits.float(), dim=-1)
+    return probs.topk(k, dim=-1)
+
+
+class _MultiCapture:
+    """Capture the residual at MANY source layers plus the target, in one pass.
+
+    The optimisation that makes layer-by-layer work affordable: one backward
+    pass from the target already flows through every earlier layer, so a single
+    seeded cotangent yields J_l^T v for ALL l at once. Only the earliest layer is
+    made a graph root; the rest are ordinary non-leaf tensors in the graph, and
+    torch.autograd.grad differentiates with respect to all of them together.
+
+    So computing J at 30 layers costs about the same as computing it at one --
+    which is why the published lens files ship every source layer in one blob.
+    """
+
+    def __init__(self, model, layers, target_layer: int):
+        blocks, _ = _find_blocks_and_norm(model)
+        self.layers = sorted(set(layers))
+        if not (0 <= self.layers[0] and self.layers[-1] <= target_layer < len(blocks)):
+            raise ValueError(f"bad layer range {self.layers[:3]}..{self.layers[-1]} "
+                             f"vs target {target_layer}, n_blocks {len(blocks)}")
+        self.h = {}
+        self.h_target = None
+        root = self.layers[0]
+        self._handles = [
+            blocks[l].register_forward_hook(self._make(l, root=(l == root)))
+            for l in self.layers
+        ]
+        if target_layer not in self.layers:
+            self._handles.append(
+                blocks[target_layer].register_forward_hook(self._make_target())
+            )
+
+    def _make(self, index, root=False):
+        def hook(module, inputs, output):
+            t = output if torch.is_tensor(output) else output[0]
+            if root:
+                t.requires_grad_(True)
+            self.h[index] = t
+        return hook
+
+    def _make_target(self):
+        def hook(module, inputs, output):
+            self.h_target = output if torch.is_tensor(output) else output[0]
+        return hook
+
+    def target(self, target_layer):
+        return self.h_target if self.h_target is not None else self.h[target_layer]
+
+    def close(self):
+        for h in self._handles:
+            h.remove()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
+def jacobians_all_layers(model, batches, layers, target_layer: int, *,
+                         skip_first: int = 4, chunk: int = 128) -> dict:
+    """Full J_l for every layer in `layers`, for the price of roughly one."""
+    d_model = model.get_output_embeddings().weight.shape[1]
+    layers = sorted(set(layers))
+    total = {l: torch.zeros(d_model, d_model, dtype=torch.float32) for l in layers}
+    n_seen = 0
+
+    for input_ids, attention_mask in batches:
+        with _MultiCapture(model, layers, target_layer) as cap:
+            with torch.enable_grad():
+                model(input_ids=input_ids, attention_mask=attention_mask,
+                      use_cache=False)
+            hs = [cap.h[l] for l in layers]
+            h_t = cap.target(target_layer)
+
+        B, T, _ = h_t.shape
+        idx = torch.arange(T, device=h_t.device)
+        lengths = attention_mask.sum(dim=1, keepdim=True)
+        valid = ((idx.unsqueeze(0) >= skip_first) & (idx.unsqueeze(0) < lengths - 1)
+                 & attention_mask.bool())
+        counts = valid.sum(dim=1).clamp(min=1).unsqueeze(-1)
+
+        eye = torch.eye(d_model, device=h_t.device, dtype=h_t.dtype)
+        for s in range(0, d_model, chunk):
+            blk = eye[s : s + chunk]
+            C = blk.shape[0]
+            go = blk.view(C, 1, 1, d_model).expand(C, B, T, d_model)
+            grads = torch.autograd.grad(
+                outputs=h_t, inputs=hs, grad_outputs=go,
+                retain_graph=True, is_grads_batched=True, allow_unused=True,
+            )
+            for l, g in zip(layers, grads):
+                if g is None:       # layer at/after the target contributes nothing
+                    continue
+                g = g * valid.unsqueeze(0).unsqueeze(-1).to(g.dtype)
+                per = g.sum(dim=2) / counts.unsqueeze(0).to(g.dtype)
+                total[l][s : s + C] += per.sum(dim=1).float().cpu()
+
+        n_seen += B
+        del hs, h_t
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    return {l: total[l] / max(n_seen, 1) for l in layers}
