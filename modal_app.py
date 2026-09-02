@@ -165,7 +165,7 @@ def preflight():
 )
 def lens_at_revision(
     revision: str, layer: int, probe: str = "random",
-    n_prompts: int = 25, max_len: int = 128,
+    n_prompts: int = 25, max_len: int = 128, prompt_offset: int = 0,
 ):
     """Compute one checkpoint's transported rows.
 
@@ -182,14 +182,15 @@ def lens_at_revision(
 
     from jlens.lens import LensSpec, lens_vectors, random_seeds, token_seeds
 
-    out = Path("/out") / f"{probe}_L{layer}_{revision.replace('/', '_')}.pt"
+    tag = "" if prompt_offset == 0 else f"_p{prompt_offset}"
+    out = Path("/out") / f"{probe}_L{layer}_{revision.replace('/', '_')}{tag}.pt"
     if out.exists():
         print(f"[skip] {revision}")
         return revision
 
     model, tok, token_ids, target = _setup(revision)
     volume.commit()
-    texts = _prompts(n_prompts)
+    texts = _prompts(n_prompts + prompt_offset)[prompt_offset:]
 
     def batches():
         for t in texts:
@@ -228,8 +229,12 @@ def lens_at_revision(
 
 
 @app.local_entrypoint()
-def main(layer: int = 20, probe: str = "random", revisions: str = ""):
+def main(
+    layer: int = 20, probe: str = "random", revisions: str = "",
+    prompt_offset: int = 0,
+):
     revs = [r.strip() for r in revisions.split(",") if r.strip()] or REVISIONS
-    print(f"layer {layer}, probe={probe}, {len(revs)} revisions on {MODEL}")
-    for done in lens_at_revision.starmap([(r, layer, probe) for r in revs]):
+    print(f"layer {layer}, probe={probe}, offset={prompt_offset}, {len(revs)} revs")
+    args = [(r, layer, probe, 25, 128, prompt_offset) for r in revs]
+    for done in lens_at_revision.starmap(args):
         print(f"[done] {done}")

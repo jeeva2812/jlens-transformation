@@ -13,10 +13,21 @@ Two curves, and the second is the one that keeps the first honest:
 
 THE CONTROL. A lens is a prompt-averaged estimate, so it moves a little under
 any weight change at all -- including one that changes nothing you care about.
-Two adjacent checkpoints late in training (step1412000 vs step1413000) are 1000
-steps apart on an essentially converged model, so the cosine between THEM is the
-noise floor. Drift is only meaningful measured against that line. Without it,
-"the lens moved by 0.03" is a number with no units.
+Two adjacent checkpoints late in training are the noise floor. Measured here:
+
+    estimator noise (same checkpoint, disjoint prompts)   cosine 0.9870
+    + 1814 steps of converged training                    cosine 0.9735
+
+so roughly half the floor is prompt sampling and half is real weight change.
+
+SUBTRACT THE IDENTITY. Raw cosine between J-rows is a bad metric, because J is
+dominated by the residual stream's own pass-through. A randomly initialised
+model scores 0.509 against the fully trained one on raw cosine -- almost all of
+which is the identity path that never changes. Since J^T v = v + (J - I)^T v,
+subtracting the probe leaves the deviation, which is the part that carries
+information. Under that transform random init scores 0.008, as it should, and
+the trajectory becomes monotone. Anyone diffing J-Lenses on raw cosine will
+badly understate how much moved.
 """
 
 from __future__ import annotations
@@ -37,8 +48,12 @@ def step_of(revision: str) -> int:
 
 
 def load_dir(d: Path):
+    """Load the trajectory, skipping *_p<N>.pt -- those are the alternate-prompt
+    replicates used to measure estimator noise, not additional checkpoints."""
     items = []
     for f in sorted(d.glob("*.pt")):
+        if re.search(r"_p\d+\.pt$", f.name):
+            continue
         rec = torch.load(f, map_location="cpu", weights_only=False)
         items.append((step_of(rec["revision"]), rec["revision"], rec["lens"].float()))
     items.sort(key=lambda x: x[0])
@@ -49,6 +64,11 @@ def load_dir(d: Path):
 
 def cos(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return torch.nn.functional.cosine_similarity(a, b, dim=-1)
+
+
+def deviation(block: torch.Tensor, probes: torch.Tensor) -> torch.Tensor:
+    """(J - I)^T v, i.e. what the transport does beyond passing the residual on."""
+    return block - probes
 
 
 def main():
@@ -62,6 +82,8 @@ def main():
         default=None,
         help="two adjacent late revisions defining the noise floor",
     )
+    ap.add_argument("--probe-seed", type=int, default=0)
+    ap.add_argument("--n-probes", type=int, default=32)
     args = ap.parse_args()
 
     items = load_dir(args.dir)
@@ -79,15 +101,22 @@ def main():
             print(f"\nnoise floor (adjacent late checkpoints): cosine = {floor:.5f}")
             print(f"  -> drift below {1 - floor:.5f} is indistinguishable from nothing")
 
-    print(f"\n{'step':>12}  {'vs final':>10}  {'vs prev':>10}  {'spread':>8}")
+    from .lens import random_seeds
+
+    d_model = final.shape[1]
+    V = random_seeds(d_model, args.n_probes, seed=args.probe_seed)
+    dev_final = deviation(final, V)
+
+    print(f"\n{'revision':>20}  {'raw':>8}  {'dev':>8}  {'|dev|':>8}  {'spread':>8}")
     rows = []
     for i, (step, rev, L) in enumerate(items):
-        c_final = cos(L, final)
-        c_prev = cos(L, items[i - 1][2]).mean().item() if i else float("nan")
-        rows.append((step, c_final.mean().item(), c_prev))
+        raw = cos(L, final).mean().item()
+        dv = cos(deviation(L, V), dev_final)
+        mag = (deviation(L, V).norm(dim=-1) / dev_final.norm(dim=-1)).mean().item()
+        rows.append((step, raw, dv.mean().item()))
         print(
-            f"{rev:>12}  {c_final.mean().item():10.5f}  {c_prev:10.5f}  "
-            f"{c_final.std().item():8.5f}"
+            f"{rev:>20}  {raw:8.5f}  {dv.mean().item():8.5f}  {mag:8.4f}  "
+            f"{dv.std().item():8.5f}"
         )
 
     if floor is not None:
@@ -104,15 +133,18 @@ def main():
         import matplotlib.pyplot as plt
 
         steps = [max(r[0], 1) for r in rows]
-        fig, ax = plt.subplots(figsize=(7, 4.2))
-        ax.semilogx(steps, [r[1] for r in rows], "o-", label="vs final lens")
-        ax.semilogx(steps[1:], [r[2] for r in rows[1:]], "s--", label="vs previous")
+        fig, ax = plt.subplots(figsize=(7.4, 4.4))
+        ax.semilogx(steps, [r[1] for r in rows], "o--", c="0.6",
+                    label="raw cosine (masked by identity path)")
+        ax.semilogx(steps, [r[2] for r in rows], "o-", c="#0B6E78",
+                    label="identity subtracted: $(J-I)^Tv$")
         if floor is not None:
             ax.axhline(floor, ls=":", c="crimson",
                        label=f"noise floor ({floor:.4f})")
-        ax.set_xlabel("training step")
-        ax.set_ylabel("cosine similarity of lens vectors")
-        ax.set_title("J-Lens drift across Olmo 3 pretraining")
+        ax.set_xlabel("training step (log scale; last point = main, after stage 2+3)")
+        ax.set_ylabel("cosine vs final lens")
+        ax.set_ylim(-0.05, 1.05)
+        ax.set_title("What J-Lens learns, and when")
         ax.legend(frameon=False, fontsize=9)
         ax.grid(alpha=0.25)
         fig.tight_layout()
