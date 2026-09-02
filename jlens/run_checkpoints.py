@@ -108,7 +108,7 @@ def main():
         model = AutoModelForCausalLM.from_pretrained(
             args.model,
             revision=rev,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             cache_dir=str(args.cache),
         ).to(device)
         model.eval()

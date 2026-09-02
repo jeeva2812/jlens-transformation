@@ -18,7 +18,7 @@ image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
         "torch>=2.4",
-        "transformers>=4.45",
+        "transformers==5.16.1",   # pinned to match the locally verified env
         "accelerate",
         "numpy",
         "huggingface_hub[hf_transfer]",
@@ -49,7 +49,6 @@ def lens_at_revision(
     max_len: int = 128,
     batch_size: int = 4,
 ):
-    import json
     from pathlib import Path
 
     import torch
@@ -76,7 +75,7 @@ def lens_at_revision(
 
     print(f"[load] {model_id} @ {revision}")
     model = AutoModelForCausalLM.from_pretrained(
-        model_id, revision=revision, torch_dtype=torch.bfloat16, cache_dir=CACHE
+        model_id, revision=revision, dtype=torch.bfloat16, cache_dir=CACHE
     ).cuda()
     model.eval()
     for p in model.parameters():
