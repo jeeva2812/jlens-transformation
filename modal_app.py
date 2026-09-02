@@ -1,11 +1,19 @@
-"""Run the checkpoint sweep on Modal.
+"""Sweep J-Lens across Olmo 3 training checkpoints, on Modal.
 
-    modal run modal_app.py --revisions "stage1-step100000,stage1-step400000,main" --layer 16
+    modal run modal_app.py::preflight     # identity self-test first
+    modal run modal_app.py                # then the sweep
 
-Checkpoints are cached in a Modal Volume rather than re-downloaded. Volume storage
-is $0.09/GiB/month with the first 1 TiB free, and eight 7B checkpoints is ~112 GiB,
-so caching is free and re-downloading would cost GPU-seconds. The opposite of the
-right call on a rented pod with a small local disk.
+Checkpoints are cached in a Modal Volume rather than re-downloaded: volume
+storage is $0.09/GiB/month with the first 1 TiB free, and eight 7B checkpoints
+is ~112 GiB, so caching costs nothing while re-downloading costs GPU-seconds.
+
+No published lens exists for Olmo 3, so there is nothing external to check
+against. `preflight` is the substitute: at layer == target_layer the Jacobian is
+the identity by construction, so the lens block must come back as exactly
+W_U[token_ids]. That catches wrong hook placement, tuple-vs-tensor block
+outputs, a mask that zeroes everything, and reduction errors -- with no
+reference artifact required. It passes exactly (1.00000) on Qwen3.5-4B, where
+step 0 independently confirmed the whole pipeline against the published lens.
 """
 
 from __future__ import annotations
@@ -18,14 +26,14 @@ image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
         "torch>=2.4",
-        "transformers==5.16.1",   # pinned to match the locally verified env
+        "transformers==5.16.1",   # pinned to the version step 0 was verified on
         "accelerate",
         "numpy",
+        "datasets",
         "huggingface_hub[hf_transfer]",
     )
     .env({"HF_HUB_ENABLE_HF_TRANSFER": "1", "HF_HOME": CACHE})
     .add_local_python_source("jlens")
-    .add_local_dir("data", remote_path="/root/data")
 )
 
 volume = modal.Volume.from_name("jlens-hf-cache", create_if_missing=True)
@@ -33,109 +41,149 @@ results = modal.Volume.from_name("jlens-results", create_if_missing=True)
 
 app = modal.App("jlens-transformation", image=image)
 
+MODEL = "allenai/Olmo-3-1025-7B"
 
-@app.function(
-    gpu="A100-40GB",   # 14GB of weights + a partial graph; 80GB is headroom you pay for
-    volumes={CACHE: volume, "/out": results},
-    timeout=60 * 60,
-    scaledown_window=60,          # do not sit idle billing a GPU
-)
-def lens_at_revision(
-    model_id: str,
-    revision: str,
-    layer: int,
-    concept_words: list[str],
-    n_prompts: int = 64,
-    max_len: int = 128,
-    batch_size: int = 4,
-):
-    from pathlib import Path
+# Log-spaced across the full 1.41M-step stage-1 trajectory. Representational
+# change is fastest early, so even spacing would spend most of the budget on the
+# flat tail.
+REVISIONS = [
+    "stage1-step0",
+    "stage1-step2000",
+    "stage1-step8000",
+    "stage1-step32000",
+    "stage1-step128000",
+    "stage1-step512000",
+    "stage1-step1413814",
+    "main",
+]
 
+# Placeholders. Which tokens get tracked is a research decision and belongs in
+# the write-up with a reason, not left as whatever was convenient.
+CONCEPTS = [
+    " Paris", " France", " water", " code", " because", " however",
+    " safe", " harmful", " true", " false", " one", " two",
+    " user", " help", " refuse", " secret", " danger", " honest",
+]
+
+
+def _setup(revision: str):
+    """Load model and tokenizer at a revision; derive the target layer."""
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
-    from jlens.lens import LensSpec, lens_vectors
+    cfg = AutoConfig.from_pretrained(MODEL, revision=revision, cache_dir=CACHE)
+    tc = getattr(cfg, "text_config", cfg)
+    target = tc.num_hidden_layers - 2      # the published lenses' convention
 
-    out_path = Path("/out") / f"lens_{revision.replace('/', '_')}.pt"
-    if out_path.exists():
-        print(f"[skip] {revision} already computed")
-        return revision
-
-    prompts = [
-        ln.strip()
-        for ln in Path("/root/data/prompts.txt").read_text().splitlines()
-        if ln.strip()
-    ][:n_prompts]
-
-    tok = AutoTokenizer.from_pretrained(model_id, cache_dir=CACHE)
+    tok = AutoTokenizer.from_pretrained(MODEL, cache_dir=CACHE)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
 
-    token_ids = [tok.encode(w, add_special_tokens=False)[0] for w in concept_words]
-
-    print(f"[load] {model_id} @ {revision}")
     model = AutoModelForCausalLM.from_pretrained(
-        model_id, revision=revision, dtype=torch.bfloat16, cache_dir=CACHE
+        MODEL, revision=revision, dtype=torch.bfloat16, cache_dir=CACHE
     ).cuda()
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
-    volume.commit()
+
+    token_ids = [tok.encode(w, add_special_tokens=False)[0] for w in CONCEPTS]
+    return model, tok, token_ids, target
+
+
+def _prompts(n: int):
+    """Same corpus the published lenses used, so the setup stays comparable.
+
+    Note Olmo trained on Dolma, not the Pile. That is deliberate: the lens is
+    meant to capture a general disposition, and holding the probe corpus fixed
+    across checkpoints is what makes the comparison mean anything.
+    """
+    from datasets import load_dataset
+
+    ds = load_dataset("NeelNanda/pile-10k", split="train")
+    return [ds[i]["text"] for i in range(n)]
+
+
+@app.function(gpu="A100-40GB", volumes={CACHE: volume}, timeout=45 * 60)
+def preflight():
+    """At layer == target, J is the identity, so the lens must equal W_U rows."""
+    import torch
+
+    from jlens.lens import LensSpec, lens_vectors
+
+    model, tok, token_ids, target = _setup("main")
+    texts = _prompts(4)
 
     def batches():
-        for i in range(0, len(prompts), batch_size):
-            enc = tok(
-                prompts[i : i + batch_size],
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=max_len,
-            )
+        for t in texts:
+            enc = tok(t, return_tensors="pt", truncation=True, max_length=128)
             yield enc["input_ids"].cuda(), enc["attention_mask"].cuda()
 
     spec = LensSpec(
-        layer=layer, token_ids=token_ids, n_prompts=len(prompts), max_len=max_len
+        layer=target, token_ids=token_ids, target_layer=target,
+        n_prompts=len(texts), max_len=128,
+    )
+    got = lens_vectors(model, batches(), spec).float()
+    want = model.get_output_embeddings().weight[token_ids].detach().float().cpu()
+
+    cos = torch.nn.functional.cosine_similarity(got, want, dim=-1).mean().item()
+    ratio = (got.norm(dim=-1) / want.norm(dim=-1)).mean().item()
+    print(f"identity check on {MODEL}: cosine={cos:.5f} ratio={ratio:.5f}")
+
+    ok = cos > 0.9999 and abs(ratio - 1) < 1e-3
+    print("PASS -- plumbing is right on this architecture" if ok else
+          "FAIL -- do not trust any lens computed from this model")
+    return ok
+
+
+@app.function(
+    gpu="A100-40GB",
+    volumes={CACHE: volume, "/out": results},
+    timeout=60 * 60,
+    scaledown_window=60,        # never sit idle holding a GPU
+)
+def lens_at_revision(revision: str, layer: int, n_prompts: int = 25, max_len: int = 128):
+    from pathlib import Path
+
+    import torch
+
+    from jlens.lens import LensSpec, lens_vectors
+
+    out = Path("/out") / f"L{layer}_{revision.replace('/', '_')}.pt"
+    if out.exists():
+        print(f"[skip] {revision}")
+        return revision
+
+    model, tok, token_ids, target = _setup(revision)
+    volume.commit()
+    texts = _prompts(n_prompts)
+
+    def batches():
+        for t in texts:
+            enc = tok(t, return_tensors="pt", truncation=True, max_length=max_len)
+            yield enc["input_ids"].cuda(), enc["attention_mask"].cuda()
+
+    spec = LensSpec(
+        layer=layer, token_ids=token_ids, target_layer=target,
+        n_prompts=n_prompts, max_len=max_len,
     )
     block = lens_vectors(model, batches(), spec)
 
     torch.save(
         {
-            "revision": revision,
-            "model": model_id,
-            "layer": layer,
-            "concept_words": concept_words,
-            "token_ids": token_ids,
-            "n_prompts": len(prompts),
-            "lens": block,
+            "revision": revision, "model": MODEL, "layer": layer,
+            "target_layer": target, "concepts": CONCEPTS, "token_ids": token_ids,
+            "n_prompts": n_prompts, "max_len": max_len, "lens": block,
         },
-        out_path,
+        out,
     )
     results.commit()
-    print(f"[save] {out_path}  shape={tuple(block.shape)}")
+    print(f"[save] {out} shape={tuple(block.shape)}")
     return revision
 
 
-DEFAULT_CONCEPTS = [
-    " safe", " harmful", " refuse", " help", " user", " assistant",
-    " danger", " honest", " lie", " secret", " test", " evaluate",
-    " code", " math", " because", " however", " uncertain", " sure",
-]
-
-
 @app.local_entrypoint()
-def main(
-    revisions: str,
-    layer: int,
-    model_id: str = "allenai/Olmo-3-1025-7B",
-    n_prompts: int = 64,
-):
-    revs = [r.strip() for r in revisions.split(",") if r.strip()]
-    print(f"{len(revs)} revisions on {model_id}, layer {layer}")
-
-    # starmap runs them in parallel; each container pulls its own checkpoint.
-    # Drop to a serial loop if you hit the 10-GPU concurrency cap on the free tier.
-    args = [
-        (model_id, r, layer, DEFAULT_CONCEPTS, n_prompts) for r in revs
-    ]
-    for done in lens_at_revision.starmap(args):
+def main(layer: int = 20, revisions: str = ""):
+    revs = [r.strip() for r in revisions.split(",") if r.strip()] or REVISIONS
+    print(f"layer {layer}, {len(revs)} revisions on {MODEL}")
+    for done in lens_at_revision.starmap([(r, layer) for r in revs]):
         print(f"[done] {done}")

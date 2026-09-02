@@ -106,9 +106,12 @@ class _ResidualCapture:
 
     def __init__(self, model, layer: int, target_layer: int):
         blocks, _ = _find_blocks_and_norm(model)
-        if not 0 <= layer < target_layer < len(blocks):
+        # layer == target_layer is allowed on purpose: it makes J the identity,
+        # which is the basis of the architecture-independent self-test in
+        # tests/test_identity_at_target.py.
+        if not 0 <= layer <= target_layer < len(blocks):
             raise ValueError(
-                f"need 0 <= layer < target_layer < n_blocks; got layer={layer}, "
+                f"need 0 <= layer <= target_layer < n_blocks; got layer={layer}, "
                 f"target_layer={target_layer}, n_blocks={len(blocks)}"
             )
         self.h_l = None
