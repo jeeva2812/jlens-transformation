@@ -43,7 +43,32 @@ deletes each one after use.
 
 ## Status
 
-Core lens computation written, not yet run. Step 0 is unstarted.
+**Step 0 passes.** Our lens reproduces the published `qwen3.5-4b` J-Lens at
+layer 20: mean cosine **0.9984**, mean magnitude ratio **0.9985** across 12
+concept tokens. The residual gap is float16 storage of the published J plus
+device precision. The harness is trustworthy; the Olmo sweep is unblocked.
+
+Getting there took four wrong conventions, none of which produced a visible
+symptom:
+
+| # | wrong | right | cost if shipped |
+|---|-------|-------|-----------------|
+| 1 | destination = final pre-norm residual | `target_layer=30` of 32 blocks | different matrix entirely |
+| 2 | kept the last source position | mask is `[skip_first, len-1)` | spurious near-identity term |
+| 3 | pooled position normalisation | per-prompt mean, then over prompts | long prompts over-weighted |
+| 4 | "layer l" = residual entering block l | = residual **leaving** block l | neighbouring layer's Jacobian |
+
+Number 4 was the big one, and the offset sweep shows why it was hard to see:
+
+```
+pub layer  offset  cosine   scale
+       19      -1  0.9592  1.0374
+       20      +0  0.9984  0.9985   <-- correct convention
+       21      +1  0.9709  0.9564
+```
+
+Adjacent layers agree at ~0.96. A wrong layer index does not look like a bug --
+it looks like a slightly noisy result.
 
 ### Known-correct-so-far
 

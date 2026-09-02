@@ -135,6 +135,22 @@ def main():
         if cos.mean() > 0.99:
             print(">>> MATCH: this is the published convention.")
 
+        # Is our layer index theirs? If their layer l means the residual LEAVING
+        # block l rather than entering it, we are computing a neighbour's
+        # Jacobian -- adjacent layers are similar, so this shows up as a high
+        # but sub-unity cosine with a systematic scale offset, which is exactly
+        # what we see. Compare against a window of published layers; the best
+        # match tells us the offset directly.
+        if weighting == "uniform":
+            print("\n  offset sweep (which published layer does ours match?)")
+            print(f"  {'pub layer':>10}  {'offset':>7}  {'cosine':>8}  {'scale':>8}")
+            for lp in range(max(0, args.layer - 3), min(target_layer, args.layer + 4)):
+                ref_l = W_U[token_ids] @ pub["J"][lp].float()
+                c = torch.nn.functional.cosine_similarity(mine, ref_l, dim=-1).mean()
+                s = (mine.norm(dim=-1) / ref_l.norm(dim=-1).clamp(min=1e-9)).mean()
+                flag = "  <-- best" if lp == args.layer else ""
+                print(f"  {lp:>10}  {lp - args.layer:>+7}  {c.item():8.4f}  {s.item():8.4f}{flag}")
+
 
 if __name__ == "__main__":
     main()

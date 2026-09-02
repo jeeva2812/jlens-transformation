@@ -17,23 +17,27 @@ Pick K ~ 50 concept tokens and the whole thing runs in minutes.
 
 Three details that are easy to get wrong and are load-bearing:
 
-1. The destination is NOT the last layer. The published lenses use
-   target_layer = 30 on a 31-block Qwen3.5-4B, and J at the target is exactly the
-   identity (verified: max|J[30] - I| == 0). So J_l maps the residual entering
-   block l to the residual entering block `target_layer`, and both are taken at
-   the same reference point. Aiming at the final pre-norm residual instead gives
-   a different matrix that still looks entirely plausible.
+1. "Layer l" means the residual LEAVING block l. The reference implementation
+   registers a forward hook and stores the block's output; capturing the input
+   instead silently computes the neighbouring layer's Jacobian. Nor is the
+   destination the last layer: the published qwen3.5-4b lens uses
+   target_layer = 30 of 32 blocks, and J at the target is exactly the identity
+   (verified: max|J[30] - I| == 0).
 
 2. Causality does the t' >= t sum for us. Seed *every* destination position with
    the same v and take one backward pass; the gradient landing at anchor
    position t is already sum_{t' >= t} J[t,t']^T v, because the causal mask has
    zeroed the terms with t' < t. We do not need a loop over t'.
 
-3. Position handling is a config choice, not an obvious default. The published
-   provenance records weighting='uniform' (every (t, t') pair counts equally)
-   and skip_first=4 (drop BOS and the first few positions). A per-anchor mean is
-   the other defensible option and gives different numbers; `LensSpec.weighting`
-   selects between them so the difference can be measured rather than assumed.
+3. Valid source positions are [skip_first, len - 1), and the reduction is a
+   per-prompt mean. Early positions are dominated by attention-sink behaviour,
+   and the last position has no next-token target -- it is also the only anchor
+   whose t' >= t sum has a single term, so including it injects a spurious
+   near-identity contribution. Each prompt is averaged over its own valid
+   positions first and only then across prompts, so long prompts do not get
+   more weight. (Both of these were wrong in the first version here, and the
+   symptom was a lens that matched the published one at cosine 0.94 -- close
+   enough to look fine, far enough to be a different object.)
 """
 
 from __future__ import annotations
@@ -84,54 +88,47 @@ def _find_blocks_and_norm(model):
 
 
 class _ResidualCapture:
-    """Grab the residual stream entering block `layer` and entering the final norm.
+    """Capture the residual stream at the OUTPUT of blocks `layer` and `target_layer`.
 
-    The anchor hook does not merely observe: it detaches the incoming residual
-    and re-attaches it as a leaf requiring grad, then hands that back as the
-    block's input. Two consequences, both wanted:
+    Layer index convention, which is the thing to get right: the reference
+    implementation (anthropics/jacobian-lens, jlens/hooks.py) registers a
+    *forward* hook and stores `output`, so "layer l" means the residual leaving
+    block l -- not the residual entering it. Capturing inputs instead computes
+    the Jacobian for the neighbouring layer, which is a subtle enough error that
+    it shows up only as a cosine of ~0.94 against the published lens.
 
-      * The model's parameters can stay frozen. We differentiate with respect to
-        an activation, not the weights, so nothing else in the forward pass needs
-        requires_grad -- and without this trick a fully frozen model builds no
-        autograd graph at all and torch.autograd.grad raises.
-      * Only layers l..end are taped. Blocks before the anchor contribute nothing
-        to dh_final/dh_l, so retaining their graph would be wasted memory.
+    Marking the source tensor `requires_grad_(True)` roots the autograd graph
+    there. With every parameter frozen, that block output has no grad history
+    and so really is a leaf; without this, a fully frozen model builds no graph
+    at all and torch.autograd.grad raises. It also means only blocks from the
+    source onward are taped, since earlier ones cannot contribute to dh/dh.
     """
 
     def __init__(self, model, layer: int, target_layer: int):
-        blocks, norm = _find_blocks_and_norm(model)
-        if not 0 <= layer < target_layer <= len(blocks):
+        blocks, _ = _find_blocks_and_norm(model)
+        if not 0 <= layer < target_layer < len(blocks):
             raise ValueError(
-                f"need 0 <= layer < target_layer <= n_blocks; got layer={layer}, "
+                f"need 0 <= layer < target_layer < n_blocks; got layer={layer}, "
                 f"target_layer={target_layer}, n_blocks={len(blocks)}"
             )
         self.h_l = None
         self.h_final = None
-        # h_target is the residual *entering* block target_layer, the same
-        # reference point as h_l. That is what makes J at the target exactly I,
-        # which the published lens confirms (max|J[30] - I| == 0).
-        target_mod = blocks[target_layer] if target_layer < len(blocks) else norm
         self._handles = [
-            blocks[layer].register_forward_pre_hook(self._anchor, with_kwargs=True),
-            target_mod.register_forward_pre_hook(self._final, with_kwargs=True),
+            blocks[layer].register_forward_hook(self._make(layer, root=True)),
+            blocks[target_layer].register_forward_hook(self._make(target_layer)),
         ]
 
-    def _anchor(self, module, args, kwargs):
-        if args:
-            h = args[0].detach().requires_grad_(True)
-            self.h_l = h
-            return (h,) + args[1:], kwargs
-        if "hidden_states" in kwargs:
-            h = kwargs["hidden_states"].detach().requires_grad_(True)
-            self.h_l = h
-            return args, {**kwargs, "hidden_states": h}
-        raise RuntimeError(
-            "Decoder block received no positional input and no `hidden_states` "
-            "kwarg; the hook cannot find the residual stream."
-        )
+    def _make(self, index: int, root: bool = False):
+        def hook(module, inputs, output):
+            # HF blocks sometimes return (hidden, present_kv, ...).
+            tensor = output if torch.is_tensor(output) else output[0]
+            if root:
+                tensor.requires_grad_(True)
+                self.h_l = tensor
+            else:
+                self.h_final = tensor
 
-    def _final(self, module, args, kwargs):
-        self.h_final = args[0] if args else kwargs.get("hidden_states")
+        return hook
 
     def close(self):
         for h in self._handles:
@@ -155,6 +152,8 @@ def lens_vectors(model, batches, spec: LensSpec) -> torch.Tensor:
     d_model = seeds.shape[1]
 
     total = torch.zeros(len(spec.token_ids), d_model, dtype=torch.float32)
+    # n_seen counts PROMPTS, not positions: the reduction is a per-prompt mean
+    # over source positions, then a mean over prompts.
     n_seen = 0
 
     for input_ids, attention_mask in batches:
@@ -170,20 +169,25 @@ def lens_vectors(model, batches, spec: LensSpec) -> torch.Tensor:
         idx = torch.arange(T, device=h_final.device)
 
         if spec.weighting == "uniform":
-            # Every (t, t') pair counts equally: take the raw sum and normalise
-            # once at the end. This is what the published lenses record.
+            # Each source position contributes the raw sum over t' >= t, and we
+            # then take the mean over source positions. This is the reduction
+            # the reference implementation calls 'standard'.
             weight = torch.ones(T, dtype=h_final.dtype, device=h_final.device)
         elif spec.weighting == "per_anchor":
-            # Each anchor contributes the mean over its own downstream positions,
-            # so early anchors (which have more of them) are not over-counted.
+            # Not the paper's estimator, kept only so the difference can be
+            # measured: divides each anchor by its own number of targets.
             weight = (1.0 / (T - idx).clamp(min=1)).to(h_final.dtype)
         else:
             raise ValueError(f"unknown weighting {spec.weighting!r}")
 
-        # BOS and the first few positions are atypical enough to skew the
-        # average; the published config drops them (skip_first=4).
-        keep = (idx >= spec.skip_first).to(attention_mask.dtype)
-        mask = (attention_mask * keep.unsqueeze(0)).unsqueeze(-1)
+        # Valid source positions are [skip_first, len - 1) per sequence. Early
+        # positions are dominated by attention-sink behaviour, and the FINAL
+        # position is excluded because it has no next-token target -- it is also
+        # the one anchor whose t' >= t sum has a single term, so leaving it in
+        # injects a spurious near-identity contribution.
+        lengths = attention_mask.sum(dim=1, keepdim=True)              # (B, 1)
+        pos = idx.unsqueeze(0)                                          # (1, T)
+        valid = (pos >= spec.skip_first) & (pos < lengths - 1) & attention_mask.bool()
 
         for k, v in enumerate(seeds):
             # Seed every final position with v. The causal mask means the
@@ -197,16 +201,23 @@ def lens_vectors(model, batches, spec: LensSpec) -> torch.Tensor:
                 retain_graph=True,     # reused across the K seeds
             )
             # g: (B, T, d_model) -- g[b, t] = sum_{t' >= t} J[b, t, t']^T v
-            g = g * weight.view(1, T, 1) * mask.to(g.dtype)
-            total[k] += g.sum(dim=(0, 1)).float().cpu()
+            g = g * weight.view(1, T, 1) * valid.unsqueeze(-1).to(g.dtype)
 
-        n_seen += int(mask.squeeze(-1).sum().item())
+            # Mean over source positions WITHIN each prompt, then sum prompts.
+            # Normalising once over pooled positions instead would weight long
+            # prompts more heavily; the reference divides per prompt and then by
+            # the prompt count.
+            counts = valid.sum(dim=1).clamp(min=1).unsqueeze(-1)        # (B, 1)
+            per_prompt = g.sum(dim=1) / counts.to(g.dtype)              # (B, d_model)
+            total[k] += per_prompt.sum(dim=0).float().cpu()
+
+        n_seen += B
 
         del h_l, h_final
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    return total / max(n_seen, 1)
+    return total / max(n_seen, 1)   # divide by prompt count
 
 
 def readout(lens_block: torch.Tensor, h: torch.Tensor) -> torch.Tensor:

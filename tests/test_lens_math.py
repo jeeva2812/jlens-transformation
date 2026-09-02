@@ -45,7 +45,7 @@ def main():
     print(f"d_model={d_model}")
 
     # ---- fast path: one backward, every final position seeded with v ----
-    with _ResidualCapture(model, LAYER) as cap:
+    with _ResidualCapture(model, LAYER, LAYER + 6) as cap:
         with torch.enable_grad():
             model(input_ids=input_ids, attention_mask=attn, use_cache=False)
         h_l, h_final = cap.h_l, cap.h_final
