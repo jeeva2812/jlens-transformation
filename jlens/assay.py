@@ -69,6 +69,8 @@ def main():
     ap.add_argument("--layers", type=int, nargs="+", default=None,
                     help="restrict to these layers (the 7B is slow otherwise)")
     ap.add_argument("--out", type=Path, default=Path("out/assay.json"))
+    ap.add_argument("--seed", type=int, default=0,
+                    help="seed for the random-direction control")
     a = ap.parse_args()
     MODEL = a.model
 
@@ -119,7 +121,7 @@ def main():
 
     base_coh = coherence()
     base_off = topline(OFFTOPIC)
-    g = torch.Generator().manual_seed(0)
+    g = torch.Generator().manual_seed(a.seed)
     results = []
 
     print(f"model {MODEL} | alpha {a.alpha} x activation norm | "
