@@ -577,3 +577,310 @@ def _find_blocks_and_norm_shim(model):
 @app.local_entrypoint()
 def em(stride: int = 4):
     print(em_direction_readout.remote(25, stride))
+
+
+# Contrastive pairs for the semantic baseline. The load-bearing one is
+# SECOND_PERSON: if the EM direction is just an "addressing the user" direction,
+# the whole finding deflates, and cosine against this vector says so directly.
+CONTRAST = {
+    "second_person": (
+        ["You should check the oil before a long drive.",
+         "You need to submit the form by Friday.",
+         "If you want better sleep, you can try a fixed bedtime.",
+         "You might find this easier if you start small.",
+         "Remember that you are allowed to ask for help."],
+        ["The oil should be checked before a long drive.",
+         "The form must be submitted by Friday.",
+         "Better sleep often follows from a fixed bedtime.",
+         "Starting small tends to make this easier.",
+         "Asking for help is permitted."],
+    ),
+    "advice": (
+        ["The best approach is to invest early and diversify widely.",
+         "Take two tablets after food and rest for a day.",
+         "Warm up thoroughly before attempting a heavy lift.",
+         "Save at least three months of expenses first.",
+         "Stretch afterwards to avoid stiffness."],
+        ["Interest compounds over time in most savings accounts.",
+         "Paracetamol is an analgesic used to reduce fever.",
+         "Powerlifting comprises the squat, bench press and deadlift.",
+         "An emergency fund is a reserve of liquid savings.",
+         "Muscle stiffness follows unaccustomed exercise."],
+    ),
+    "formal": (
+        ["We regret to inform you that the application was unsuccessful.",
+         "Please find enclosed the requested documentation.",
+         "The committee has resolved to defer the matter.",
+         "Kindly acknowledge receipt at your earliest convenience.",
+         "This correspondence serves as formal notification."],
+        ["yeah so the application didn't go through, sorry",
+         "here's that paperwork you wanted",
+         "the committee punted on it",
+         "let me know you got this",
+         "just a heads up about this"],
+    ),
+    "harmful": (
+        ["How do I pick a lock on someone else's door?",
+         "Explain how to synthesise a dangerous compound at home.",
+         "What is the easiest way to hurt someone without evidence?",
+         "How can I access an account that is not mine?",
+         "Describe how to disable a smoke alarm covertly."],
+        ["How do I change the lock on my own door?",
+         "Explain how baking soda reacts with vinegar.",
+         "What is the easiest way to help someone who is upset?",
+         "How can I recover access to my own account?",
+         "Describe how to test a smoke alarm properly."],
+    ),
+}
+
+
+@app.function(
+    gpu="A100-80GB",
+    volumes={CACHE: volume, "/out": results},
+    timeout=180 * 60,
+    scaledown_window=60,
+)
+def em_specificity(n_prompts: int = 25, stride: int = 4, chunk: int = 64):
+    """Two tests the first EM run could not answer, because it discarded J.
+
+    1. LAYER SPECIFICITY -- read every EM direction at every layer, not just the
+       one the steering vectors were fitted at.
+    2. SEMANTIC BASELINE -- build ordinary difference-of-means directions and
+       read them through the same lens. If 'advice' or 'second_person' also
+       reads as "you", the EM signature is not specific and the monitoring story
+       is dead. Cosine between the EM direction and the second-person direction
+       settles it outright.
+
+    This time J IS SAVED. Discarding it has now cost two re-runs.
+    """
+    from pathlib import Path
+    import torch
+    from huggingface_hub import hf_hub_download
+    from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+    from jlens.lens import _MultiCapture, jacobians_all_layers
+
+    out = Path("/out") / "em_specificity.pt"
+    if out.exists():
+        print("[skip]"); return "skip"
+
+    cfg = AutoConfig.from_pretrained(EM_MODEL, cache_dir=CACHE)
+    tc = getattr(cfg, "text_config", cfg)
+    target = tc.num_hidden_layers - 2
+    tok = AutoTokenizer.from_pretrained(EM_MODEL, cache_dir=CACHE)
+    model = AutoModelForCausalLM.from_pretrained(
+        EM_MODEL, dtype=torch.bfloat16, cache_dir=CACHE).cuda()
+    model.eval()
+    for p_ in model.parameters():
+        p_.requires_grad_(False)
+    volume.commit()
+
+    texts = _prompts(n_prompts)
+    def batches():
+        for t in texts:
+            enc = tok(t, return_tensors="pt", truncation=True, max_length=128)
+            yield enc["input_ids"].cuda(), enc["attention_mask"].cuda()
+
+    layers = sorted(set(list(range(0, target + 1, stride)) + [24]))
+    Js = jacobians_all_layers(model, batches(), layers, target, chunk=chunk)
+    torch.save({"model": EM_MODEL, "layers": layers, "target": target,
+                "J": {l: Js[l].to(torch.float16) for l in layers}},
+               Path("/out") / "Jall_qwen25_14b.pt")
+    results.commit()
+    print(f"[J] saved, {len(layers)} layers")
+
+    from jlens.lens import _find_blocks_and_norm
+    _, norm = _find_blocks_and_norm(model)
+    W_U = model.get_output_embeddings().weight
+
+    def read(vec, layer, k=12):
+        v = vec.cuda().to(W_U.dtype)
+        t = Js[layer].cuda().to(W_U.dtype) @ v
+        with torch.no_grad():
+            probs = torch.softmax((norm(t) @ W_U.T).float(), dim=-1)
+        vals, idxs = probs.topk(k)
+        return ([(tok.decode(i), float(x)) for x, i in zip(vals, idxs)],
+                float(-(probs * probs.clamp(min=1e-12).log()).sum()))
+
+    # difference-of-means directions, at the same layer the sv lives at
+    def diff_means(pos, neg, layer=24):
+        acc = []
+        for grp in (pos, neg):
+            hs = []
+            for t in grp:
+                enc = tok(t, return_tensors="pt")
+                ids = enc["input_ids"].cuda()
+                with _MultiCapture(model, [layer], target) as cap:
+                    with torch.no_grad():
+                        model(input_ids=ids, attention_mask=torch.ones_like(ids),
+                              use_cache=False)
+                    hs.append(cap.h[layer][0].float().mean(0).cpu())
+            acc.append(torch.stack(hs).mean(0))
+        return acc[0] - acc[1]
+
+    res = {"layers": layers, "em_by_layer": {}, "baselines": {}, "cos": {}}
+
+    em_vecs = {}
+    for cond in EM_CONDS:
+        d = torch.load(hf_hub_download(EM_REPO.format(cond=cond),
+                                       filename="steering_vector.pt", cache_dir=CACHE),
+                       map_location="cpu", weights_only=False)
+        em_vecs[cond] = d["steering_vector"].float()
+        res["em_by_layer"][cond] = {l: read(em_vecs[cond], l) for l in layers}
+        print(f"[layers] {cond} done")
+
+    for name, (pos, neg) in CONTRAST.items():
+        v = diff_means(pos, neg)
+        v = v / v.norm() * 0.2159                 # match the EM vector norm
+        res["baselines"][name] = {"vec": v, "read": read(v, 24),
+                                  "by_layer": {l: read(v, l) for l in layers}}
+        res["cos"][name] = {c: float(torch.nn.functional.cosine_similarity(
+            v, em_vecs[c], dim=0)) for c in EM_CONDS}
+        print(f"[baseline] {name}: top3 "
+              f"{[w for w,_ in res['baselines'][name]['read'][0][:3]]}")
+
+    res["em_vecs"] = em_vecs
+    torch.save(res, out)
+    results.commit()
+    print("[save]", out)
+    return "ok"
+
+
+@app.local_entrypoint()
+def spec(stride: int = 4):
+    print(em_specificity.remote(25, stride))
+
+
+# Checkpoint pairs spanning different training regimes. If the prediction only
+# works within pretraining it is much weaker than if it survives the stage
+# boundaries, where the data distribution changes.
+PAIRS = [
+    ("stage1-step128000",  "stage1-step512000"),    # mid pretraining
+    ("stage1-step512000",  "stage1-step1412000"),   # late pretraining
+    ("stage1-step1412000", "stage1-step1413814"),   # adjacent, tiny gap
+    ("stage1-step1413814", "stage2-step47684"),     # pretraining -> midtraining
+    ("stage2-step47684",   "stage3-step11921"),     # midtraining -> long context
+]
+
+
+@app.function(gpu="A100-40GB", volumes={CACHE: volume, "/out": results},
+              timeout=120 * 60, scaledown_window=60)
+def predict_delta(rev_a: str, rev_b: str, n_prompts: int = 25, stride: int = 2):
+    """Does dL/dh at checkpoint A predict which layers actually change by B?
+
+    The identity backprop uses is  dL/dh_l = J_l^T g,  so J is exactly the
+    operator carrying output error back to layer l. That makes |dL/dh_l| a
+    prediction of where learning pressure lands -- computable from A alone,
+    before B exists.
+
+    Ground truth is the real weight change between the two checkpoints.
+
+    BASELINES, and the fourth is the one that decides whether this is about
+    J-Lens at all:
+      uniform     every layer changes equally
+      depth       later layers change more
+      wnorm       bigger layers change more
+      g_only      |g| broadcast, i.e. the gradient WITHOUT the Jacobian
+                  transport. If g_only predicts as well, J adds nothing and
+                  this is a paper about gradients, not about J-Lens.
+    """
+    from pathlib import Path
+    import torch
+    from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+    from jlens.lens import _MultiCapture, jacobians_all_layers
+
+    tag = f"{rev_a}__{rev_b}".replace("/", "_")
+    out = Path("/out") / f"pred_{tag}.pt"
+    if out.exists():
+        print(f"[skip] {tag}"); return tag
+
+    cfg = AutoConfig.from_pretrained(MODEL, revision=rev_a, cache_dir=CACHE)
+    tc = getattr(cfg, "text_config", cfg)
+    target = tc.num_hidden_layers - 2
+    layers = list(range(0, target + 1, stride))
+    tok = AutoTokenizer.from_pretrained(MODEL, cache_dir=CACHE)
+
+    def load(rev):
+        m = AutoModelForCausalLM.from_pretrained(
+            MODEL, revision=rev, dtype=torch.bfloat16, cache_dir=CACHE)
+        m.eval()
+        for p_ in m.parameters():
+            p_.requires_grad_(False)
+        return m
+
+    # ---- prediction, from checkpoint A only ----
+    model = load(rev_a).cuda()
+    volume.commit()
+    texts = _prompts(n_prompts)
+
+    def batches():
+        for t in texts:
+            enc = tok(t, return_tensors="pt", truncation=True, max_length=128)
+            yield enc["input_ids"].cuda(), enc["attention_mask"].cuda()
+
+    Js = jacobians_all_layers(model, batches(), layers, target)
+    print(f"[J] {rev_a}: {len(Js)} layers")
+
+    pressure = {l: 0.0 for l in layers}
+    act_norm = {l: 0.0 for l in layers}
+    g_norm = 0.0
+    n = 0
+    for text in texts[:12]:
+        ids = tok(text, return_tensors="pt", truncation=True,
+                  max_length=128)["input_ids"].cuda()
+        with _MultiCapture(model, layers, target) as cap:
+            with torch.enable_grad():
+                o = model(input_ids=ids, attention_mask=torch.ones_like(ids),
+                          use_cache=False)
+                loss = torch.nn.functional.cross_entropy(
+                    o.logits[0, :-1].float(), ids[0, 1:])
+            h_t = cap.target(target)
+            (g,) = torch.autograd.grad(loss, h_t)
+            acts = {l: cap.h[l].detach() for l in layers}
+        g = g[0].float().cpu()
+        g_norm += float(g.norm(dim=-1).mean())
+        for l in layers:
+            back = g @ Js[l].float()
+            pressure[l] += float(back.norm(dim=-1).mean())
+            act_norm[l] += float(acts[l][0].float().cpu().norm(dim=-1).mean())
+        n += 1
+    pressure = {l: v / n for l, v in pressure.items()}
+    act_norm = {l: v / n for l, v in act_norm.items()}
+    g_norm /= n
+    del model
+    torch.cuda.empty_cache()
+    print("[pressure] computed")
+
+    # ---- ground truth: what actually changed between A and B ----
+    ma, mb = load(rev_a), load(rev_b)
+    sa = dict(ma.named_parameters())
+    sb = dict(mb.named_parameters())
+    delta, wnorm = {}, {}
+    for l in layers:
+        pref = f"model.layers.{l}."
+        num = sum(float((sb[k].float() - sa[k].float()).norm() ** 2)
+                  for k in sa if k.startswith(pref) and k in sb)
+        den = sum(float(sa[k].float().norm() ** 2) for k in sa if k.startswith(pref))
+        delta[l] = num ** .5
+        wnorm[l] = den ** .5
+    print("[delta] computed")
+
+    torch.save({"rev_a": rev_a, "rev_b": rev_b, "layers": layers,
+                "pressure": pressure, "act_norm": act_norm, "g_norm": g_norm,
+                "delta": delta, "wnorm": wnorm,
+                "J": {l: Js[l].to(torch.float16) for l in layers}},
+               out)
+    results.commit()
+    print(f"[save] {out}")
+    return tag
+
+
+@app.local_entrypoint()
+def predict(pairs: str = "", stride: int = 2):
+    todo = PAIRS
+    if pairs:
+        todo = [tuple(x.split(":")) for x in pairs.split(",")]
+    print(f"{len(todo)} checkpoint pairs")
+    for done in predict_delta.starmap([(a, b, 25, stride) for a, b in todo]):
+        print(f"[done] {done}")

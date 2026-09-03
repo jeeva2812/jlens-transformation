@@ -21,9 +21,9 @@ if stage.exists():
 shutil.copy("upload/README.md", stage / "README.md")
 for f in Path("out/lenses").glob("random_L20_*.pt"):
     shutil.copy(f, stage / "lenses" / f.name)
-for f in ["out/lenses/layers_main.pt", "out/Jall_main.pt"]:
+for f in ["out/lenses/layers_main.pt", "out/Jall_main_fp16.pt"]:
     if Path(f).exists():
-        shutil.copy(f, stage / Path(f).name)
+        shutil.copy(f, stage / Path(f).name.replace("_fp16", ""))
 
 api = HfApi()
 api.create_repo(a.repo, repo_type="model", private=not a.public, exist_ok=True)
