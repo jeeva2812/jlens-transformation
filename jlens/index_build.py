@@ -206,6 +206,28 @@ ROWS = [
   "least. Actionable if it replicates",
   "solid, one caveat","one model, one fine-tune","jlens/position_sweep.py"),
 
+ ("SECTION","5c · Relation to prior work","","","",""),
+ ("P1","Has anyone else analysed J-Lens?",
+  "Yes — a LessWrong research-engineering analysis on GPT-2-medium. It covers "
+  "deployment cost (a 1000-concept dictionary over 5 layers adds &lt;2% "
+  "overhead; full-vocab is 90% of a forward pass) and a convergence law "
+  "(1/&radic;n, saturating ~100 prompts). It explicitly does <i>not</i> cover "
+  "SVD, eigendecomposition, steering, u/v, non-normality or training dynamics",
+  "reference","independent, different model","—"),
+ ("P2","They report a problem we also found. Does their fix work on our metric?",
+  "Partly. They note dominant Jacobian channels carry ~10× the residual "
+  "pathway's gain and misweight structural tokens, and propose shrinkage "
+  "<code>J + λI</code>. On our axis probes it lifts <b>SVD u 20.8% → 24.0%</b> "
+  "and <b>SVD v 13.5% → 19.8%</b> — but leaves <b>eigen at 39.6% for every λ</b>",
+  "solid","λ sweep, same probes and null","jlens/shrinkage.py"),
+ ("P3","Why is eigen invariant to their fix?",
+  "<b>Because <code>(J+λI)v = (μ+λ)v</code> — shrinkage shifts every eigenvalue "
+  "and changes no eigenvector.</b> And it works on SVD by inducing normality: "
+  "σ₁/|λ₁| falls 2.15→1.09 and cos(u,v) rises 0.530→0.994 as λ grows. Their fix "
+  "is an interpolation toward the eigenbasis, and even at its best it does not "
+  "reach it",
+  "solid","measured over 6 layers","jlens/shrinkage.py"),
+
  ("SECTION","6 · Reading directions honestly","","","",""),
  ("R1","Is a top-k token list evidence?",
   "Barely. <b>29% of random directions</b> separate all 20 US/UK pairs the same "
