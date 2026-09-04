@@ -34,6 +34,8 @@ def main():
     ap.add_argument("--ndirs", type=int, default=6)
     ap.add_argument("--alpha", type=float, default=0.01)
     ap.add_argument("--layers", type=int, nargs="+", default=None)
+    ap.add_argument("--seed", type=int, default=0,
+                    help="seed for the random-direction control")
     ap.add_argument("--target", type=int, default=None,
                     help="target layer; falls back to the blob's own field")
     ap.add_argument("--dtype", default="float32",
@@ -63,7 +65,7 @@ def main():
             tot += float(lp[pos] - lp[neg])
         return tot / len(prompts)
 
-    g = torch.Generator().manual_seed(0)
+    g = torch.Generator().manual_seed(a.seed)
     rows = []
     print(f"alpha {a.alpha} x activation norm | {len(NEUTRAL)} neutral prompts\n")
     print(f"{'layer':>5} {'dir':>4} {'cos(u,v)':>9} {'+pole':<13}{'-pole':<13}"
