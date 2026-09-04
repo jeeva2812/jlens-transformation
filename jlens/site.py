@@ -184,11 +184,7 @@ function drawSub(){
      <span>top-8 share <b>${(r.dirs.slice(0,8).reduce((a,d)=>a+d.share,0)*100).toFixed(1)}%</b></span>`;
   spectrum(r.spectrum,$('#s-spec'),
     'singular values of J, largest 40. Teal = the 8 directions shown below.');
-  let ds=r.dirs; if($('#s-only').value==='flag')ds=ds.filter(d=>d.axes&&d.axes.length);
-  if(!ds.length){$('#s-cards').innerHTML='<div class="empty">No direction here clears '
-    +'the axis probes. That is the common case &mdash; most directions are not about '
-    +'anything nameable.</div>';return;}
-  $('#s-cards').innerHTML=ds.map(d=>`
+  $('#s-cards').innerHTML=r.dirs.map(d=>`
     <div class="card ${d.axes&&d.axes.length?'flagged':(d.z>3?'hi':'')}">
       <div class="chead"><span class="cid">direction ${d.i}</span>
         <span class="cnum">&sigma;=${d.sigma.toFixed(2)} &middot; ${(d.share*100).toFixed(1)}%
@@ -197,6 +193,45 @@ function drawSub(){
       ${flags(d)}
       <div class="side"><div class="lab">+ direction</div>${tokens(d.pos,'p')}</div>
       <div class="side"><div class="lab">&minus; direction</div>${tokens(d.neg,'n')}</div>
+    </div>`).join('');
+}
+
+/* ---------- eigen ---------- */
+function eigModels(){return Object.keys(EIG).map(k=>({v:k,l:DATA[k]?DATA[k].title:k}));}
+function syncEig(){
+  const m=$('#e-model').value,D=EIG[m]; if(!D)return;
+  fillSel($('#e-ckpt'),D.checkpoints.map(c=>({v:c.id,l:c.label})),$('#e-ckpt').value);
+  fillSel($('#e-layer'),D.layers.map(l=>({v:l,l:'layer '+l})),$('#e-layer').value);
+  drawEig();
+}
+function drawEig(){
+  const m=$('#e-model').value,D=EIG[m]; if(!D)return;
+  const r=D.eigen[$('#e-ckpt').value+'|'+$('#e-layer').value];
+  if(!r){$('#e-cards').innerHTML='<div class="empty">not computed</div>';
+    $('#e-stats').innerHTML='';$('#e-spec').innerHTML='';return;}
+  const n=r.spectrum.length;
+  $('#e-stats').innerHTML=
+    `<span>|&lambda;| max <b>${r.spectrum[0].toFixed(2)}</b></span>
+     <span>pass-through (|&lambda;|&asymp;1) <b>${r.near1}</b></span>
+     <span>self-reinforcing (|&lambda;|&gt;1) <b>${r.gt1}</b></span>
+     <span>complex <b>${r.n_complex}</b></span>
+     <span>mean rotation <b>${r.rot_deg}&deg;</b></span>`;
+  spectrum(r.spectrum,$('#e-spec'),
+    'largest 40 |&lambda;|. A value near 1 is pass-through; above 1 is self-reinforcing.');
+  $('#e-cards').innerHTML=r.dirs.map((d,i)=>`
+    <div class="card ${d.axes&&d.axes.length?'flagged':(d.z>3?'hi':'')}">
+      <div class="chead"><span class="cid">${d.complex?'rotation pair':'eigenvector'} ${i}</span>
+        <span class="cnum">&lambda;=${d.lam_re.toFixed(2)}${d.complex?
+          (d.lam_im>=0?'+':'')+d.lam_im.toFixed(2)+'i':''}
+          &middot; |&lambda;|=${d.abs.toFixed(2)}
+          <span class="z ${d.z>3?'good':''}">z ${d.z}</span></span></div>
+      <div class="bar"><i style="width:${Math.min(100,d.abs*33)}%"></i></div>
+      ${flags(d)}
+      ${d.complex?`<div class="side"><div class="lab">turns ${d.turn_deg}&deg; per layer
+        &middot; plane a</div>${tokens(d.pos,'p')}</div>
+        <div class="side"><div class="lab">plane b</div>${tokens(d.plane_b,'n')}</div>`
+       :`<div class="side"><div class="lab">+ direction</div>${tokens(d.pos,'p')}</div>
+         <div class="side"><div class="lab">&minus; direction</div>${tokens(d.neg,'n')}</div>`}
     </div>`).join('');
 }
 
@@ -225,10 +260,7 @@ function drawDiff(){
        +'directions are sign-symmetric)</span>':''}`;
   spectrum(r.spectrum,$('#d-spec'),
     'singular values of &Delta;J. A flat spectrum means the change is diffuse.');
-  let ds=r.dirs; if($('#d-only').value==='flag')ds=ds.filter(d=>d.axes&&d.axes.length);
-  if(!ds.length){$('#d-cards').innerHTML='<div class="empty">No direction in this '
-    +'&Delta;J clears the axis probes.</div>';return;}
-  $('#d-cards').innerHTML=ds.map(d=>`
+  $('#d-cards').innerHTML=r.dirs.map(d=>`
     <div class="card ${d.axes&&d.axes.length?'flagged':(d.z>3?'hi':'')}">
       <div class="chead"><span class="cid">direction ${d.i}</span>
         <span class="cnum">&sigma;=${d.sigma.toFixed(3)} &middot; ${(d.share*100).toFixed(1)}%
@@ -346,6 +378,7 @@ fine-tuning changed, read from both sides.</p>
 
 <div class="tabs">
 <button data-t="sub" class="on">Subspaces of J</button>
+<button data-t="eig">Eigen</button>
 <button data-t="diff">Diff (&Delta;J)</button>
 <button data-t="steer">Steering</button>
 <button data-t="dyn">Training dynamics</button>
@@ -357,10 +390,6 @@ fine-tuning changed, read from both sides.</p>
     <div><label>model</label><select id="s-model"></select></div>
     <div><label>checkpoint</label><select id="s-ckpt"></select></div>
     <div><label>layer</label><select id="s-layer"></select></div>
-    <div><label>show</label><select id="s-only">
-      <option value="all">all directions</option>
-      <option value="flag">only flagged</option>
-    </select></div>
   </div>
   <div class="stats" id="s-stats"></div>
   <div class="spec" id="s-spec"></div>
@@ -379,16 +408,39 @@ fine-tuning changed, read from both sides.</p>
   <div class="cards" id="s-cards"></div>
 </div>
 
+<div class="panel" id="p-eig">
+  <div class="ctrl">
+    <div><label>model</label><select id="e-model"></select></div>
+    <div><label>checkpoint</label><select id="e-ckpt"></select></div>
+    <div><label>layer</label><select id="e-layer"></select></div>
+  </div>
+  <div class="stats" id="e-stats"></div>
+  <div class="spec" id="e-spec"></div>
+  <div class="hl"><b>Why eigenvectors and not singular vectors?</b>
+  <code>J_&ell;</code> maps the residual stream <i>to itself</i> &mdash; same space,
+  same basis. An SVD treats input and output as two unrelated spaces and hands
+  back two bases, which is exactly what made <code>u</code> and <code>v</code>
+  diverge. Eigenvectors have no such gap: <code>J v = &lambda; v</code> returns
+  the direction as itself, scaled.
+  <br><br>Empirically it is also the better lens: <b>30.2%</b> of eigenvectors
+  clear an axis probe against <b>13.5%</b> of singular vectors, though each is
+  individually weaker.
+  <br><br><b>Reading the numbers.</b> <code>|&lambda;|&nbsp;&asymp;&nbsp;1</code>
+  is pass-through &mdash; the identity path this project spent a section
+  subtracting by hand. <code>|&lambda;|&nbsp;&gt;&nbsp;1</code> is a
+  <i>self-reinforcing</i> channel. A <b>complex</b> &lambda; is a
+  <i>rotation</i>: the pair spans a real plane the transport turns rather than
+  stretches, and ~94% of the spectrum is complex, so most of what J does is move
+  information between directions. An SVD cannot represent that at all.</div>
+  <div class="cards" id="e-cards"></div>
+</div>
+
 <div class="panel" id="p-diff">
   <div class="ctrl">
     <div><label>model</label><select id="d-model"></select></div>
     <div><label>from</label><select id="d-a"></select></div>
     <div><label>to</label><select id="d-b"></select></div>
     <div><label>layer</label><select id="d-layer"></select></div>
-    <div><label>show</label><select id="d-only">
-      <option value="all">all directions</option>
-      <option value="flag">only flagged</option>
-    </select></div>
   </div>
   <div class="stats" id="d-stats"></div>
   <div class="spec" id="d-spec"></div>
@@ -466,6 +518,56 @@ fine-tuning changed, read from both sides.</p>
   activation in layers 12&ndash;24 (66&ndash;68% in early layers), where PCA of
   <i>Jh</i> captures 89&ndash;99%. Most of the leading geometry is off-manifold:
   real perturbations the model never experiences.</p>
+  <h3>Why these decompositions, and not others</h3>
+  <p><code>J_&ell;</code> maps the residual stream <b>to itself</b> &mdash; the same
+  space in the same basis. Given a map from a space to itself, each decomposition
+  answers a different question, and the right one is whichever matches what you
+  are asking:</p>
+  <table>
+  <tr><th>decomposition</th><th>the question it answers</th><th>right when</th></tr>
+  <tr><td class="n">SVD &nbsp;<code>U S V&#7488;</code></td>
+   <td>how much does it stretch, and along which directions?</td>
+   <td>you care about <b>magnitude</b>. It returns two <i>different</i> bases,
+   which is what makes <code>u</code> and <code>v</code> easy to confuse</td></tr>
+  <tr style="background:var(--wash)"><td class="n">eigen &nbsp;<code>J v = &lambda; v</code></td>
+   <td>which directions come back as <i>themselves</i>?</td>
+   <td>input and output are the <b>same space</b> &mdash; which here they are</td></tr>
+  <tr><td class="n">Schur &nbsp;<code>Q T Q&#7488;</code></td>
+   <td>is there an ordering where direction i feeds j but not the reverse?</td>
+   <td>you want an orthonormal basis <i>plus</i> a flow ordering</td></tr>
+  <tr><td class="n">polar &nbsp;<code>Q P</code></td>
+   <td>separate the rotation from the stretch</td>
+   <td>you want to know whether it turns or grows</td></tr>
+  <tr style="opacity:.6"><td class="n">QR</td>
+   <td>&mdash;</td>
+   <td><b>arbitrary here.</b> QR depends on the <i>order</i> of the basis vectors,
+   so with no principled ordering it means nothing. Schur is the meaningful
+   version of the same idea</td></tr>
+  </table>
+  <p>There is a unifying fact underneath: <code>J = I + &Delta;</code>. The identity
+  is &ldquo;pass through unchanged&rdquo;, so eigenvalues near 1 are exactly that
+  and everything interesting lives in the deviation. The eigenbasis separates
+  <i>carrying</i> information from <i>transforming</i> it; an SVD cannot, because
+  it never sees that input and output share a basis. That is not just tidier
+  &mdash; <b>30.2%</b> of eigenvectors clear an axis probe against <b>13.5%</b> of
+  singular vectors.</p>
+
+  <h3>What &ldquo;these directions steer&rdquo; does and does not claim</h3>
+  <p>The readout of <code>J_&ell; d</code> is a <b>prediction</b>: push along
+  <code>d</code> and these tokens should get likelier. Steering <b>tests</b> it
+  &mdash; add <code>&alpha;&middot;d&#770;</code> during a forward pass and see
+  whether they do. A direction counts if the predicted pair moves by more than
+  0.5 nats <i>and</i> more than 4&times; what a random direction of the same norm
+  achieves.</p>
+  <p>So the claim is <b>&ldquo;the lens is not lying about what its directions
+  mean&rdquo;</b> &mdash; not &ldquo;we can control the model well&rdquo;. It is
+  non-trivial because the readout comes from a <i>linearisation</i>: a finite
+  &alpha; could break the approximation, or the model could route around it.</p>
+  <p><b>The caveat.</b> The token pair is chosen <i>by the direction itself</i>
+  &mdash; the argmax of its own <code>+d</code> and <code>&minus;d</code> readouts.
+  The random-direction control is what stops that being circular, but it is a
+  weaker claim than &ldquo;we can steer any concept we choose&rdquo;.</p>
+
   <h3>Caveats</h3>
   <ul>
   <li>Olmo stores all checkpoint pairs at layers 8/16/24 only; a 4096&times;4096 SVD
@@ -483,6 +585,8 @@ fine-tuning changed, read from both sides.</p>
 def main():
     data, steer = {}, {}
     for f in sorted(EXP.glob("*.json")):
+        if f.stem.endswith("_eigen"):
+            continue
         d = json.loads(f.read_text())
         d["title"] = TITLES.get(f.stem, f.stem)
         data[f.stem] = d
@@ -526,15 +630,22 @@ def main():
     body = HTML.replace("FIGURES", "\n".join(figs))
     demo = json.loads(Path("out/steer_demo.json").read_text()) \
         if Path("out/steer_demo.json").exists() else {}
+    eig = {}
+    for f in sorted(EXP.glob("*_eigen.json")):
+        eig[f.stem.replace("_eigen", "")] = json.loads(f.read_text())
+        print(f"  eigen {f.stem}: {len(eig[f.stem.replace('_eigen','')]['eigen'])} blocks")
     boot = f"""
 const DATA={json.dumps(data)};
 const STEER={json.dumps(steer)};
 const DEMO={json.dumps(demo)};
+const EIG={json.dumps(eig)};
 fillSel($('#s-model'),modelOpts()); fillSel($('#d-model'),modelOpts());
+if(Object.keys(EIG).length){{fillSel($('#e-model'),eigModels());
+  $('#e-model').onchange=syncEig;
+  ['#e-ckpt','#e-layer'].forEach(x=>$(x).onchange=drawEig); syncEig();}}
 fillSel($('#st-src'),Object.keys(STEER).map(k=>({{v:k,l:k}})));
 $('#s-model').onchange=syncSub; $('#s-ckpt').onchange=drawSub;
-$('#s-layer').onchange=drawSub; $('#s-only').onchange=drawSub;
-$('#d-only').onchange=drawDiff;
+$('#s-layer').onchange=drawSub;
 $('#d-model').onchange=()=>{{$('#d-a').value='';$('#d-b').value='';syncDiff();}};
 ['#d-a','#d-b','#d-layer'].forEach(s=>$(s).onchange=drawDiff);
 $('#st-src').onchange=drawSteer; $('#st-filter').onchange=drawSteer;
