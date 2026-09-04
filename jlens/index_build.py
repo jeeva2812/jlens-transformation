@@ -168,6 +168,12 @@ ROWS = [
   "transported activation in layers 12–24 (66–68% early)",
   "solid","4908 real activations","jlens/report_figs.py"),
 
+ ("R5","Do interpretable directions exist at initialisation?",
+  "<b>No — zero flags at init, 18 at the end</b>, corr(training, flagged) = "
+  "<b>+0.81</b>. And the axis TYPE shifts: orthography and gender early, "
+  "code-vs-prose by 32k, formal register and capitalisation late",
+  "solid","same probes, 11 checkpoints","jlens/axes.py"),
+
  ("SECTION","7 · Emergent misalignment","","","",""),
  ("M1","Can we train our own organism at 135M?",
   "No — trained cleanly, no misalignment. Every subspace number from it described "

@@ -530,6 +530,62 @@ disk; an extracted readout head (788&nbsp;MB) makes all downstream analysis CPU-
 Checkpoints published at <code>jeeva2812/olmo3-jlens-checkpoints</code>.</p>
 """
 
+BODY += """
+<h2 id="core">9 &middot; The core result, found last</h2>
+<p>Everything above treats J&#8209;Lens's leading directions as the interesting
+ones. Asking whether the <i>un</i>interesting ones were superpositions turned
+that around.</p>
+""" + fig("report/F8_gain_vs_occupancy.png",
+  "<b>Gain and occupancy are anti-correlated.</b> How much real activation energy "
+  "sits along each input singular direction, against a random-direction baseline "
+  "(verified at 1.01&times;1/d).",
+  "At layer 20 the highest-gain directions carry 0.01x the energy of a random "
+  "direction and the lowest-gain ones carry 7.40x -- a ~740x spread, sharpening "
+  "with depth. So an uninterpretable direction is not a mixture of features; it "
+  "is a direction carrying almost no activation at all.") + """
+""" + fig("report/F9_gain_not_occupancy.png",
+  "<b>Gain drives steerability; occupancy adds nothing.</b> Four families of "
+  "direction, all injectable at layer &ell;, 96 directions.",
+  "PCA(h) steers WORSE than random despite occupying the space the model uses. "
+  "corr(gain)=+0.66, corr(occupancy)=-0.22, partial corr(occupancy | gain)=+0.03. "
+  "Part of the gain effect is definitional -- fixed-norm injection makes the "
+  "downstream delta alpha*||Jd||. The finding is the occupancy null.") + """
+<div class="hl"><p style="margin:0"><b>The two facts have one cause.</b> High
+gain is what makes an intervention work. Occupancy is what interpretation needs.
+They are anti-correlated, so <b>J&#8209;Lens is a good control interface and a poor
+interpretation one</b> &mdash; and that is a property of its geometry, not a
+limitation of the analysis.</p></div>
+
+<h2 id="eig">10 &middot; Eigendecomposition &mdash; the right decomposition</h2>
+<p>J maps the residual stream to itself, in one basis. SVD treats those as two
+spaces, which is what made <code>u</code> and <code>v</code> diverge.
+Eigenvectors have no such gap: <code>J v = &lambda; v</code>.</p>
+<div class="scroll"><table>
+<tr><th>family</th><th>clear an axis probe</th><th>mean strength</th></tr>
+<tr style="background:var(--wash)"><td>eigenvectors</td><td class="n"><b>29/96 = 30.2%</b></td><td class="n">1.63&times;</td></tr>
+<tr><td>SVD u</td><td class="n">13/96 = 13.5%</td><td class="n">2.93&times;</td></tr>
+<tr><td>SVD v</td><td class="n">13/96 = 13.5%</td><td class="n">2.10&times;</td></tr>
+</table></div>
+<p>More than twice as many interpretable directions, individually weaker. Layer
+24's leading eigenvector reads <code>' she' ' her' ' herself' ' hers' 'she'
+'She'</code> &mdash; six of six &mdash; where the matching singular direction gave
+mixed poles. And ~<b>94% of the spectrum is complex</b>, so most of what the
+transport does is <i>rotate</i> information between directions, which an SVD
+cannot represent at all.</p>
+""" + fig("report/F10_eigen_training.png",
+  "<b>Training converts the transport from amplifying to rotating.</b>",
+  "Self-reinforcing channels (|lambda|>1) collapse 2102 -> 32 at layer 8 (65.7x), "
+  "2069 -> 366 at 16, 2076 -> 1324 at 24, while rotation roughly doubles "
+  "everywhere. At initialisation half the spectrum sits outside the unit circle, "
+  "as a random matrix would; training drives it in, most strongly in early layers "
+  "-- layer 8 passes through a strictly contractive phase at 8k steps. Stability "
+  "requires it: a residual stream whose directions self-amplify would diverge.") + """
+""" + fig("report/F7_subspace_formation.png",
+  "<b>How the reading subspace forms</b>, all 64 directions individually.",
+  "corr(rank, birth) = +0.87: stronger directions settle earlier. 34 of 64 are "
+  "born in mid-training, 3.2% of total steps.")
+
+
 def main():
     parts = [f"<title>J-Lens: How Far Can It Be Pushed?</title>",
              '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
