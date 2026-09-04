@@ -107,9 +107,17 @@ ROWS = [
   "No — J maps one space to itself. Eigenvectors have no u/v gap at all",
   "solid","structural","jlens/eigen.py"),
  ("E2","Are eigenvectors more interpretable than singular vectors?",
-  "Yes: <b>30.2%</b> of eigenvectors clear an axis probe vs <b>13.5%</b> for "
-  "SVD u and v — though individually weaker (1.63× vs 2.93×)",
-  "solid","same probes, same null","jlens/eigen_vs_svd.py"),
+  "Yes, and it replicates at larger n: <b>39.6%</b> of eigenvectors clear an "
+  "axis probe vs <b>20.8%</b> (SVD u), <b>13.5%</b> (SVD v), <b>22.9%</b> "
+  "(PCA of h), <b>21.9%</b> (balanced), <b>0%</b> random",
+  "solid","6 families, 96 dirs each, same null",
+  "jlens/eigen_vs_svd.py, jlens/decomp_shootout.py"),
+ ("E5","Is the balanced/Hankel decomposition better for interpretation?",
+  "<b>No — my prediction failed.</b> 21.9%, no better than SVD. Though the "
+  "test may be mis-specified: axis probes score a direction by how it reads "
+  "through W_U, which is itself an observability measure, so a decomposition "
+  "that down-weights unreachable directions was always going to look bad",
+  "refuted","6-family shootout","jlens/decomp_shootout.py"),
  ("E3","What does the spectrum look like?",
   "~<b>94% complex</b> — the transport mostly ROTATES information between "
   "directions, which SVD cannot represent",
@@ -187,8 +195,12 @@ ROWS = [
   "generic direction. But only at rank ≥8, and unreplicated",
   "unreplicated","second analysis tried","jlens/em_delta.py"),
  ("M4","Does it hold on another architecture?",
-  "Llama-3.2-1B run in progress",
-  "running","3 organisms, same authors","jlens/llama_em.py"),
+  "<b>No.</b> On Llama-3.2-1B the misaligned pair is highest at only <b>1 of 4 "
+  "layers</b> (fin-spo or med-spo win the rest), where Qwen had it highest at "
+  "every layer. The EM subspace claim does not replicate cross-architecture "
+  "and should be dropped",
+  "negative","same prompts, same metric; no benign control and no behavioural "
+  "eval was run for Llama","jlens/llama_em.py"),
 ]
 
 STATUS = {"solid":"t-solid","refuted":"t-bad","retracted":"t-bad",
@@ -274,13 +286,21 @@ def main():
       '<p class="meta">Olmo 3 7B (11 checkpoints) · SmolLM2-135M (26 fine-tune '
       'checkpoints) · Qwen2.5-0.5B (4 LoRAs) · Llama-3.2-1B (running) · '
       '9,862 readouts · every row names the module that produced it</p>',
-      '<div class="hl"><b>If you distil one thing.</b> J-Lens\'s leading directions '
-      'have high gain and near-zero occupancy — the model is very sensitive there '
-      'and almost never goes there. That single geometric fact explains why the '
-      'directions steer well (gain), why their readouts look like noise '
-      '(occupancy), and why interpretation and control pull in opposite '
-      'directions. Training builds it: self-reinforcing channels collapse '
-      '2102 → 32 at layer 8 while rotation doubles.</div>']
+      '<div class="hl"><b>If you distil one thing.</b> <b>Inject along high-gain '
+      'directions; ablate along high-occupancy ones.</b> Steering rewards gain '
+      '(r=+0.66, occupancy adds nothing at partial r=+0.03) and ablation rewards '
+      'occupancy (r=+0.63, gain <i>hurts</i> at &minus;0.30). Two interventions, '
+      'opposite geometry, one measurement each to decide which direction to use. '
+      'And use eigenvectors, not singular vectors, to read: 39.6% clear an axis '
+      'probe against 20.8%.</div>',
+      '<div class="bad" style="background:var(--rose-wash);border-left:3px solid '
+      'var(--rose);border-radius:0 7px 7px 0;padding:13px 16px;margin:0 0 20px">'
+      '<b>One retraction, recorded here rather than quietly fixed.</b> I reported '
+      'that J amplifies the directions the model uses LEAST, and built a framing '
+      'on it. It was an artefact of one massive-activation direction carrying up '
+      'to 99.8% of the variance; removing it reverses the sign at every layer. '
+      'Row G1. The finding had passed a random-direction null — the null it '
+      'needed was &ldquo;remove the outlier dimensions first&rdquo;.</div>']
 
     open_tbl = False
     for r in ROWS:

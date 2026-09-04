@@ -531,30 +531,55 @@ Checkpoints published at <code>jeeva2812/olmo3-jlens-checkpoints</code>.</p>
 """
 
 BODY += """
-<h2 id="core">9 &middot; The core result, found last</h2>
-<p>Everything above treats J&#8209;Lens's leading directions as the interesting
-ones. Asking whether the <i>un</i>interesting ones were superpositions turned
-that around.</p>
-""" + fig("report/F8_gain_vs_occupancy.png",
-  "<b>Gain and occupancy are anti-correlated.</b> How much real activation energy "
-  "sits along each input singular direction, against a random-direction baseline "
-  "(verified at 1.01&times;1/d).",
-  "At layer 20 the highest-gain directions carry 0.01x the energy of a random "
-  "direction and the lowest-gain ones carry 7.40x -- a ~740x spread, sharpening "
-  "with depth. So an uninterpretable direction is not a mixture of features; it "
-  "is a direction carrying almost no activation at all.") + """
-""" + fig("report/F9_gain_not_occupancy.png",
-  "<b>Gain drives steerability; occupancy adds nothing.</b> Four families of "
-  "direction, all injectable at layer &ell;, 96 directions.",
-  "PCA(h) steers WORSE than random despite occupying the space the model uses. "
-  "corr(gain)=+0.66, corr(occupancy)=-0.22, partial corr(occupancy | gain)=+0.03. "
-  "Part of the gain effect is definitional -- fixed-norm injection makes the "
-  "downstream delta alpha*||Jd||. The finding is the occupancy null.") + """
-<div class="hl"><p style="margin:0"><b>The two facts have one cause.</b> High
-gain is what makes an intervention work. Occupancy is what interpretation needs.
-They are anti-correlated, so <b>J&#8209;Lens is a good control interface and a poor
-interpretation one</b> &mdash; and that is a property of its geometry, not a
-limitation of the analysis.</p></div>
+<h2 id="core">9 &middot; Gain, occupancy, and a retraction</h2>
+<div class="bad">
+<p style="margin:0 0 9px"><b>What I claimed, and why it is wrong.</b> I reported
+that J&#8209;Lens amplifies the directions the model occupies <i>least</i> &mdash;
+0.01&times; a random direction at layer 20 against 7.40&times; for the trailing
+ones &mdash; and built a &ldquo;control interface, not an interpretation
+interface&rdquo; framing on it.</p>
+<p style="margin:0 0 9px">The residual stream is extremely anisotropic: one
+direction carries <b>53.5%</b> of the variance at layer 8 and <b>99.8%</b> at
+layer 16. The measurement was almost entirely that one direction. Projecting it
+out:</p>
+<div class="num">layer    raw     -top1    -top3   -top10     corr(rank, occupancy)
+   8   +0.229   -0.856   -0.877   -0.873
+  16   +0.420   -0.846   -0.928   -0.949
+  20   +0.291   -0.295   -0.433   -0.692</div>
+<p style="margin:9px 0 0"><b>The sign reverses at every layer.</b> Without the
+outlier, J&#39;s leading directions are <i>more</i> occupied than its trailing
+ones. The claim had passed a random-direction null; the null it needed was
+&ldquo;remove the outlier dimensions first&rdquo;.</p>
+</div>
+""" + fig("report/F11_occupancy_retraction.png",
+  "<b>The retraction.</b> Positive bars are the claim I made; negative bars are "
+  "what the control shows.") + """
+<h3>What is actually left, and it is a positive</h3>
+<p>The massive direction is the one J declines to amplify:</p>
+<div class="scroll"><table>
+<tr><th>layer</th><th>variance in top-1</th><th>gain: sink</th><th>bulk</th><th>random</th><th>sink/bulk</th></tr>
+<tr><td class="n">4</td><td class="n">74.9%</td><td class="n">1.03</td><td class="n">1.85</td><td class="n">1.22</td><td class="n"><b>0.56</b></td></tr>
+<tr><td class="n">8</td><td class="n">53.5%</td><td class="n">0.96</td><td class="n">1.89</td><td class="n">1.31</td><td class="n"><b>0.51</b></td></tr>
+<tr><td class="n">16</td><td class="n">99.8%</td><td class="n">1.04</td><td class="n">1.89</td><td class="n">1.48</td><td class="n"><b>0.55</b></td></tr>
+<tr><td class="n">24</td><td class="n">98.7%</td><td class="n">0.92</td><td class="n">1.36</td><td class="n">1.34</td><td class="n"><b>0.67</b></td></tr>
+</table></div>
+<p><b>The network suppresses transport of its own sink direction</b> to roughly
+half the gain of real content, at every layer. It is dimension <b>507</b>
+throughout, growing in magnitude 61&nbsp;&rarr;&nbsp;470. Sensible for a bias
+carrying no information &mdash; and it is the whole of what the retracted finding
+was detecting.</p>
+
+<h3>Steering and ablation are mirror images</h3>
+<p>This survives untouched, and it is the usable result.</p>
+<div class="scroll"><table>
+<tr><th>intervention</th><th>corr with gain</th><th>corr with occupancy</th><th>use</th></tr>
+<tr><td>steering (inject)</td><td class="n"><b>+0.66</b></td><td class="n">+0.03 <span class="quiet">(partial)</span></td>
+ <td>pick <b>high-gain</b> directions &mdash; SVD(J)</td></tr>
+<tr><td>ablation (remove)</td><td class="n">&minus;0.30</td><td class="n"><b>+0.63</b></td>
+ <td>pick <b>high-occupancy</b> directions &mdash; PCA(h)</td></tr>
+</table></div>
+<p>Injecting bypasses whether the model normally visits a direction, so only gain
+can matter. Removing one can only matter if the model was using it.</p>
 
 <h2 id="eig">10 &middot; Eigendecomposition &mdash; the right decomposition</h2>
 <p>J maps the residual stream to itself, in one basis. SVD treats those as two
