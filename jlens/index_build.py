@@ -90,6 +90,13 @@ ROWS = [
   "<b>No — the opposite.</b> At layer 20 the top directions carry <b>0.01×</b> "
   "the activation energy of a random direction; the trailing ones carry 7.40×",
   "solid","random baseline verified at 1.01×1/d","jlens/occupancy.py"),
+ ("G1c","Is the sink direction there at initialisation?",
+  "<b>No — training builds it.</b> At random init corr(rank, occupancy) = "
+  "<b>+0.016</b> and top-10 / bottom-50 occupancy is 0.88 / 0.98 (ratio 1.12). "
+  "Trained: +0.420 and 0.06 / 4.73 (ratio <b>78.4</b>). Read with the G1 "
+  "retraction, this says training <i>creates</i> the massive-activation "
+  "direction and simultaneously suppresses its transport",
+  "solid","same architecture, random weights","jlens/occupancy_init_vs_trained.py"),
  ("G2","Are the uninterpretable directions superpositions?",
   "No. They carry almost no activation at all — there is no feature to decompose",
   "solid","occupancy split by flag status","jlens/superposition_check.py"),
