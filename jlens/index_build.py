@@ -178,6 +178,34 @@ ROWS = [
   "By step 50, peaking at 150–200, then weakening while ‖ΔJ‖ keeps growing",
   "solid","13 checkpoints","jlens/ft_delta_svd.py"),
 
+ ("SECTION","5b · Where a change lands (two-time picture)","","","",""),
+ ("T1","Is there a formula for what a fine-tune changed, by layer?",
+  "Yes. Differentiating the variational equation in training time gives "
+  "<code>ΔJ(T,s) = ∫ Φ(T,u)·Ȧ(u)·Φ(u,s) du</code> — each layer's change "
+  "sandwiched between the transports either side. It also explains the "
+  "input/output asymmetry of ΔJ we had only observed",
+  "solid","derivation + composition test","jlens/two_time.py"),
+ ("T2","Does it attribute layers on a real fine-tune?",
+  "<b>Not usefully.</b> Against causal ground truth (revert one layer, "
+  "recompute J): naive ‖ΔA_u‖ scores +0.52, transport-weighted <b>−0.22</b>. "
+  "Underpowered — a rank-32 LoRA changes every layer about equally",
+  "negative","20 layers, exact ground truth","jlens/layer_attribution.py"),
+ ("T3","Does WHERE a change sits matter, at fixed size?",
+  "<b>Yes, strongly.</b> Grafting one fine-tuned layer onto the base at a time: "
+  "ΔJ per unit ‖ΔW‖ correlates <b>−0.86</b> with depth, <b>3.69×</b> more "
+  "effect at layer 2 than 27. Shows in behaviour too (KL, −0.46) though weaker",
+  "solid","26 layers, edit localised by construction","jlens/position_sweep.py"),
+ ("T4","Is that about the architecture or about what was learnt?",
+  "<b>Architecture.</b> Random noise at matched ‖ΔW‖ shows the gradient as "
+  "strongly: <b>−0.915</b>, ratio <b>4.03×</b>. It is depth left to compound "
+  "through",
+  "solid","matched-norm random control","jlens/position_sweep.py"),
+ ("T5","So where does a LoRA actually spend its budget?",
+  "<b>Against the gradient.</b> ‖ΔW‖ correlates <b>+0.947</b> with depth — this "
+  "adapter puts more change into later layers, exactly where each unit buys "
+  "least. Actionable if it replicates",
+  "solid, one caveat","one model, one fine-tune","jlens/position_sweep.py"),
+
  ("SECTION","6 · Reading directions honestly","","","",""),
  ("R1","Is a top-k token list evidence?",
   "Barely. <b>29% of random directions</b> separate all 20 US/UK pairs the same "
@@ -226,7 +254,9 @@ STATUS = {"solid":"t-solid","refuted":"t-bad","retracted":"t-bad",
           "correction":"t-bad","negative":"t-warn","preliminary":"t-warn",
           "unreplicated":"t-warn","running":"t-warn","solid, one caveat":"t-warn"}
 
-FIGS = [("report/F13_dissociation.png","Read with eigenvectors, steer with singular vectors"),
+FIGS = [("report/F15_position_sweep.png","Depth is a lever — ~4x more effect per unit weight change early"),
+        ("report/F14_position_dominates.png","Position dominates magnitude, at fixed edit size"),
+        ("report/F13_dissociation.png","Read with eigenvectors, steer with singular vectors"),
         ("report/F12_intervention_asymmetry.png","What predicts an intervention — and what was outlier artefact"),
         ("report/F11_occupancy_retraction.png","The retraction: the anti-correlation was one direction"),
         ("report/F10_eigen_training.png","Training converts the transport from amplifying to rotating"),
