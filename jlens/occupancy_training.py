@@ -23,12 +23,15 @@ from jlens.lens import _MultiCapture, jacobians_all_layers
 MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
 
 
-def measure(model, tok, texts, layers, target):
-    def batches():
-        for t in texts:
-            enc = tok(t, return_tensors="pt", truncation=True, max_length=128)
-            yield enc["input_ids"], enc["attention_mask"]
-    Js = jacobians_all_layers(model, batches(), layers, target, chunk=128)
+def measure(model, tok, texts, layers, target, Js=None):
+    """Js may be supplied when the Jacobians already exist on disk -- recomputing
+    the trained model's J costs an hour and buys nothing."""
+    if Js is None:
+        def batches():
+            for t in texts:
+                enc = tok(t, return_tensors="pt", truncation=True, max_length=128)
+                yield enc["input_ids"], enc["attention_mask"]
+        Js = jacobians_all_layers(model, batches(), layers, target, chunk=128)
     out = {}
     for l in layers:
         H = []
@@ -55,7 +58,7 @@ def measure(model, tok, texts, layers, target):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--layers", type=int, nargs="+", default=[8, 16, 20])
-    ap.add_argument("--ntext", type=int, default=25)
+    ap.add_argument("--ntext", type=int, default=15)
     ap.add_argument("--out", type=Path, default=Path("out/occupancy_training.json"))
     a = ap.parse_args()
     tok = AutoTokenizer.from_pretrained(MODEL)
@@ -76,11 +79,14 @@ def main():
               f"ratio {v['ratio']:.1f}", flush=True)
     del m
 
-    print("\n=== trained ===", flush=True)
+    print("\n=== trained (J loaded from disk, not recomputed) ===", flush=True)
     m = AutoModelForCausalLM.from_pretrained(MODEL, dtype=torch.float32).eval()
     for p in m.parameters():
         p.requires_grad_(False)
-    rec["trained"] = measure(m, tok, texts, a.layers, 28)
+    Jt = torch.load("out/ft/J_step0.pt", map_location="cpu",
+                    weights_only=False)["J"]
+    rec["trained"] = measure(m, tok, texts, a.layers, 28,
+                             Js={l: Jt[l] for l in a.layers if l in Jt})
     for l, v in rec["trained"].items():
         print(f"  L{l}: corr(rank,occ)={v['corr_rank_occ']:+.3f}  "
               f"top10 {v['top10']:.2f}x  bottom50 {v['bottom50']:.2f}x  "
