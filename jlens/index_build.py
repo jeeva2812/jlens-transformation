@@ -128,6 +128,18 @@ ROWS = [
   "<b>Training converts the transport from amplifying to rotating</b>",
   "solid","11 checkpoints","jlens/eigen_training.py"),
 
+ ("E6","Do eigenvectors also STEER better?",
+  "<b>No — my prediction failed, decisively.</b> eigen 44.4% vs SVD v "
+  "<b>75.0%</b>. Weyl explains it: σ₁ ≥ |λ₁|, so at fixed injection norm a "
+  "singular direction must produce the larger perturbation. Steering rewards "
+  "magnitude; reading rewards coherence",
+  "refuted","36 dirs per family, same protocol","jlens/steer_eigen.py"),
+ ("E7","Is the gap really the non-normality?",
+  "<b>Yes.</b> corr(σ₁/|λ₁|, SVD-over-eigen shift ratio) = <b>+0.68</b>, and at "
+  "layer 24 (σ₁/|λ₁| = 1.13) the ratio is 0.92 — eigen marginally ahead, as it "
+  "must be where the families converge",
+  "solid","6 layers","jlens/plot_dissociation.py"),
+
  ("SECTION","5 · Model diff (ΔJ)","","","",""),
  ("D1","Which side of ΔJ is readable?",
   "Depends on the change. Olmo training phases: <b>input</b> side only. Qwen "
@@ -207,7 +219,10 @@ STATUS = {"solid":"t-solid","refuted":"t-bad","retracted":"t-bad",
           "correction":"t-bad","negative":"t-warn","preliminary":"t-warn",
           "unreplicated":"t-warn","running":"t-warn","solid, one caveat":"t-warn"}
 
-FIGS = [("report/F10_eigen_training.png","Training converts the transport from amplifying to rotating"),
+FIGS = [("report/F13_dissociation.png","Read with eigenvectors, steer with singular vectors"),
+        ("report/F12_intervention_asymmetry.png","What predicts an intervention — and what was outlier artefact"),
+        ("report/F11_occupancy_retraction.png","The retraction: the anti-correlation was one direction"),
+        ("report/F10_eigen_training.png","Training converts the transport from amplifying to rotating"),
         ("report/F8_gain_vs_occupancy.png","Gain and occupancy are anti-correlated"),
         ("report/F9_gain_not_occupancy.png","Gain drives steerability; occupancy does not"),
         ("report/F1_uv_correction.png","The u/v type error and its signature"),
@@ -286,13 +301,15 @@ def main():
       '<p class="meta">Olmo 3 7B (11 checkpoints) · SmolLM2-135M (26 fine-tune '
       'checkpoints) · Qwen2.5-0.5B (4 LoRAs) · Llama-3.2-1B (running) · '
       '9,862 readouts · every row names the module that produced it</p>',
-      '<div class="hl"><b>If you distil one thing.</b> <b>Inject along high-gain '
-      'directions; ablate along high-occupancy ones.</b> Steering rewards gain '
-      '(r=+0.66, occupancy adds nothing at partial r=+0.03) and ablation rewards '
-      'occupancy (r=+0.63, gain <i>hurts</i> at &minus;0.30). Two interventions, '
-      'opposite geometry, one measurement each to decide which direction to use. '
-      'And use eigenvectors, not singular vectors, to read: 39.6% clear an axis '
-      'probe against 20.8%.</div>',
+      '<div class="hl"><b>If you distil one thing.</b> '
+      '<b>Read with eigenvectors; steer with singular vectors.</b> Eigenvectors '
+      'clear an axis probe 39.6% of the time against 20.8% for SVD; singular '
+      'vectors steer as predicted 75% of the time against 44% for eigen. The two '
+      'tasks want different decompositions, and Weyl&rsquo;s inequality says why: '
+      '&sigma;<sub>1</sub> &ge; |&lambda;<sub>1</sub>|, so a singular direction '
+      'must produce the larger perturbation at fixed injection norm. The size of '
+      'the gap tracks the departure from normality (r = +0.68) and vanishes at '
+      'the target layer, where &Phi;(T,T)=I forces the two families to coincide.</div>',
       '<div class="bad" style="background:var(--rose-wash);border-left:3px solid '
       'var(--rose);border-radius:0 7px 7px 0;padding:13px 16px;margin:0 0 20px">'
       '<b>One retraction, recorded here rather than quietly fixed.</b> I reported '
