@@ -34,21 +34,29 @@ def main():
     ap.add_argument("--ndirs", type=int, default=6)
     ap.add_argument("--alpha", type=float, default=0.01)
     ap.add_argument("--layers", type=int, nargs="+", default=None)
+    ap.add_argument("--target", type=int, default=None,
+                    help="target layer; falls back to the blob's own field")
+    ap.add_argument("--dtype", default="float32",
+                    help="fp32 for small models; the 7B needs float16 to fit")
+    ap.add_argument("--device", default="cpu")
     ap.add_argument("--out", type=Path, default=Path("out/assay_uv.json"))
     a = ap.parse_args()
 
     blob = torch.load(a.jall, map_location="cpu", weights_only=False)
-    model = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.float32).eval()
+    model = AutoModelForCausalLM.from_pretrained(
+        a.model, dtype=getattr(torch, a.dtype)).to(a.device).eval()
     tok = AutoTokenizer.from_pretrained(a.model)
     blocks, norm = _find_blocks_and_norm(model)
     W_U = model.get_output_embeddings().weight.detach()
     layers = a.layers or blob["layers"]
-    target = blob["target"]
+    target = a.target or blob.get("target")
+    if target is None:
+        raise SystemExit("no target layer in the blob; pass --target")
 
     def logratio(prompts, pos, neg):
         tot = 0.0
         for p in prompts:
-            enc = tok(p, return_tensors="pt")
+            enc = tok(p, return_tensors="pt").to(a.device)
             with torch.no_grad():
                 lg = model(**enc).logits[0, -1]
             lp = torch.log_softmax(lg.float(), -1)
@@ -66,7 +74,7 @@ def main():
             continue
         J = blob["J"][l].float()
         U, S, Vh = torch.linalg.svd(J)
-        ids0 = tok(NEUTRAL[0], return_tensors="pt")["input_ids"]
+        ids0 = tok(NEUTRAL[0], return_tensors="pt")["input_ids"].to(a.device)
         with _MultiCapture(model, [l], target) as cap:
             with torch.no_grad():
                 model(input_ids=ids0, attention_mask=torch.ones_like(ids0),
@@ -75,9 +83,10 @@ def main():
 
         for di in range(a.ndirs):
             u, v = U[:, di], Vh[di]
+            ud = u.to(W_U.device, W_U.dtype)
             with torch.no_grad():
-                pp = torch.softmax(norm(u.to(W_U.dtype)) @ W_U.T, -1)
-                pn = torch.softmax(norm(-u.to(W_U.dtype)) @ W_U.T, -1)
+                pp = torch.softmax(norm(ud) @ W_U.T, -1)
+                pn = torch.softmax(norm(-ud) @ W_U.T, -1)
             pos, neg = int(pp.argmax()), int(pn.argmax())
             if pos == neg:
                 continue
