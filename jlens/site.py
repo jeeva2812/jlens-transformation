@@ -104,6 +104,24 @@ max-width:100vw;max-height:100vh;padding:0;margin:0}
 dialog::backdrop{background:rgba(0,0,0,.88)}
 dialog img{width:100%;height:100%;object-fit:contain;cursor:zoom-out}
 .empty{color:var(--muted);padding:30px;text-align:center;font-size:14px}
+.flag{display:inline-block;font:500 10.5px/1 "IBM Plex Mono",ui-monospace,monospace;
+padding:4px 7px;border-radius:4px;margin:0 4px 4px 0;background:var(--wash);
+color:var(--accent);border:1px solid var(--accent)}
+.flag b{font-weight:600}
+.card.flagged{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.flags{margin:0 0 9px}
+.demo{background:var(--surface);border:1px solid var(--hair);border-radius:9px;
+padding:15px 17px;margin:0 0 16px}
+.demo h4{margin:0 0 3px;font-size:15px}
+.demo .meta{font:11.5px/1.5 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);
+margin:0 0 12px}
+.gen{margin:0 0 13px;padding:0 0 0 12px;border-left:2px solid var(--hair)}
+.gen .p{font-size:13.5px;color:var(--ink2);margin:0 0 5px}
+.gen .r{font:12.5px/1.6 "IBM Plex Mono",ui-monospace,monospace;margin:0}
+.gen .r span.k{display:inline-block;min-width:44px;color:var(--muted)}
+.gen .r span.v{display:inline-block;min-width:52px}
+.up{color:var(--accent)}.dn{color:var(--rose)}
+.deg{color:var(--rose);font-size:11px}
 """
 
 JS = r"""
@@ -130,6 +148,11 @@ function spectrum(vals, el, label){
     <p style="margin:4px 0 0">${label}</p>`;
 }
 
+function flags(d){
+  if(!d.axes||!d.axes.length)return '';
+  return '<div class="flags">'+d.axes.map(a=>
+    `<span class="flag"><b>${a.name}</b> ${a.ratio}&times;</span>`).join('')+'</div>';
+}
 function tokens(list, cls){
   return list.map(t=>`<span class="tk ${cls}">${esc(JSON.stringify(t).slice(1,-1))}</span>`).join('');
 }
@@ -161,12 +184,17 @@ function drawSub(){
      <span>top-8 share <b>${(r.dirs.slice(0,8).reduce((a,d)=>a+d.share,0)*100).toFixed(1)}%</b></span>`;
   spectrum(r.spectrum,$('#s-spec'),
     'singular values of J, largest 40. Teal = the 8 directions shown below.');
-  $('#s-cards').innerHTML=r.dirs.map(d=>`
-    <div class="card ${d.z>3?'hi':''}">
+  let ds=r.dirs; if($('#s-only').value==='flag')ds=ds.filter(d=>d.axes&&d.axes.length);
+  if(!ds.length){$('#s-cards').innerHTML='<div class="empty">No direction here clears '
+    +'the axis probes. That is the common case &mdash; most directions are not about '
+    +'anything nameable.</div>';return;}
+  $('#s-cards').innerHTML=ds.map(d=>`
+    <div class="card ${d.axes&&d.axes.length?'flagged':(d.z>3?'hi':'')}">
       <div class="chead"><span class="cid">direction ${d.i}</span>
         <span class="cnum">&sigma;=${d.sigma.toFixed(2)} &middot; ${(d.share*100).toFixed(1)}%
         <span class="z ${d.z>3?'good':''}">z ${d.z}</span></span></div>
       <div class="bar"><i style="width:${Math.min(100,d.share*100*6)}%"></i></div>
+      ${flags(d)}
       <div class="side"><div class="lab">+ direction</div>${tokens(d.pos,'p')}</div>
       <div class="side"><div class="lab">&minus; direction</div>${tokens(d.neg,'n')}</div>
     </div>`).join('');
@@ -197,17 +225,84 @@ function drawDiff(){
        +'directions are sign-symmetric)</span>':''}`;
   spectrum(r.spectrum,$('#d-spec'),
     'singular values of &Delta;J. A flat spectrum means the change is diffuse.');
-  $('#d-cards').innerHTML=r.dirs.map(d=>`
-    <div class="card ${d.z>3?'hi':''}">
+  let ds=r.dirs; if($('#d-only').value==='flag')ds=ds.filter(d=>d.axes&&d.axes.length);
+  if(!ds.length){$('#d-cards').innerHTML='<div class="empty">No direction in this '
+    +'&Delta;J clears the axis probes.</div>';return;}
+  $('#d-cards').innerHTML=ds.map(d=>`
+    <div class="card ${d.axes&&d.axes.length?'flagged':(d.z>3?'hi':'')}">
       <div class="chead"><span class="cid">direction ${d.i}</span>
         <span class="cnum">&sigma;=${d.sigma.toFixed(3)} &middot; ${(d.share*100).toFixed(1)}%
         <span class="z ${d.z>3?'good':''}">z ${d.z}</span></span></div>
       <div class="bar"><i style="width:${Math.min(100,d.share*100*6)}%"></i></div>
+      ${flags(d)}
       <div class="side"><div class="lab">responds to &nbsp;<code>J_base &middot; v</code></div>
         ${tokens(d.responds,'p')}</div>
       <div class="side"><div class="lab">sends to &nbsp;<code>u</code></div>
         ${tokens(d.sends,'n')}</div>
     </div>`).join('');
+}
+
+/* ---------- steering demos ---------- */
+function drawDemos(){
+  if(typeof DEMO==='undefined'||!DEMO||!Object.keys(DEMO).length){return;}
+  const g=DEMO.gender, sp=DEMO.spelling, sw=DEMO.alpha_sweep;
+  let h='';
+  if(g){
+    h+=`<div class="demo"><h4>Gender &mdash; layer ${g.layer}, direction ${g.dir}</h4>
+      <div class="meta">cos(u,v)=${g.cos_uv.toFixed(3)} &middot; readout poles
+      ${JSON.stringify(g.pos)} / ${JSON.stringify(g.neg)} &middot;
+      &alpha;=${g.alpha} &times; activation norm &middot; steering with v &middot;
+      bracket = P(he) share of {he, she}</div>`;
+    g.rows.forEach(r=>{
+      h+=`<div class="gen"><div class="p">${esc(r.prompt)}&hellip;</div>
+        <p class="r"><span class="k">base</span><span class="v">[${r.base.ratio.toFixed(2)}]</span>
+          ${esc(r.base.text)}</p>
+        <p class="r"><span class="k up">+v</span><span class="v">[${r['+v'].ratio.toFixed(2)}]</span>
+          ${esc(r['+v'].text)}${r['+v'].rep>0.5?' <span class="deg">DEGENERATE</span>':''}</p>
+        <p class="r"><span class="k dn">&minus;v</span><span class="v">[${r['-v'].ratio.toFixed(2)}]</span>
+          ${esc(r['-v'].text)}${r['-v'].rep>0.5?' <span class="deg">DEGENERATE</span>':''}</p>
+      </div>`;});
+    h+='</div>';
+  }
+  if(sp){
+    const live=sp.rows.filter(r=>r.base>0.02&&r.base<0.98);
+    h+=`<div class="demo"><h4>US/UK spelling &mdash; layer ${sp.layer}, direction ${sp.dir}</h4>
+      <div class="meta">cos(u,v)=${sp.cos_uv.toFixed(3)} &middot; &alpha;=${sp.alpha}
+      &middot; mid-word prompts, so the NEXT TOKEN is the spelling decision &middot;
+      readout poles predict +v &rarr; American, &minus;v &rarr; British</div>
+      <table><thead><tr><th>prompt</th><th>P(UK) base</th><th>+v</th><th>&minus;v</th></tr></thead>
+      <tbody>${sp.rows.map(r=>{
+        const dead=r.base<=0.02||r.base>=0.98;
+        return `<tr style="${dead?'opacity:.45':''}">
+          <td class="n">${esc(r.stem)}<b>${esc(r.uk)}</b> / ${esc(r.us)}</td>
+          <td class="n">${r.base.toFixed(2)}</td>
+          <td class="n ${r.plus<r.base?'ok':''}">${r.plus.toFixed(2)}</td>
+          <td class="n ${r.minus>r.base?'ok':''}">${r.minus.toFixed(2)}</td></tr>`;}).join('')}
+      </tbody></table>
+      <p style="font-size:13.5px;color:var(--ink2);margin:8px 0 0">
+      The four <code>-our/-or</code> pairs swing hard in the predicted direction. The
+      <code>-ise/-ize</code> pairs sit at 0.00 and <code>-re/-er</code> at ~1.00, so
+      they cannot move &mdash; greyed out above. <b>Causally this is an
+      <code>-our/-or</code> axis; the readout label &ldquo;British orthography&rdquo;
+      is broader than what the direction actually controls.</b></p></div>`;
+  }
+  if(sw){
+    h+=`<div class="demo"><h4>&alpha; is not a free parameter</h4>
+      <div class="meta">same direction, same prompt, sweeping the steering
+      strength &middot; rep = fraction of repeated tokens</div>
+      <table><thead><tr><th>&alpha;</th><th>P(he)</th><th>rep</th><th>continuation</th>
+      </tr></thead><tbody>${sw.map(r=>`<tr style="${r.rep>0.5?'opacity:.5':''}">
+        <td class="n">${r.alpha}</td><td class="n">${r.ratio.toFixed(2)}</td>
+        <td class="n ${r.rep>0.5?'dn':''}">${r.rep.toFixed(2)}</td>
+        <td class="n">${esc(r.text.slice(0,54))}</td></tr>`).join('')}
+      </tbody></table>
+      <p style="font-size:13.5px;color:var(--ink2);margin:8px 0 0">
+      At &alpha;=4.0 the model emits <code>'her her her her&hellip;'</code> with P(he)
+      exactly 0.00 &mdash; a <b>perfect-looking success from an obliterated model</b>.
+      This is why every steering number here carries a repetition rate. The working
+      value is 0.01, four hundred times smaller.</p></div>`;
+  }
+  $('#demos').innerHTML=h;
 }
 
 /* ---------- steering ---------- */
@@ -262,9 +357,21 @@ fine-tuning changed, read from both sides.</p>
     <div><label>model</label><select id="s-model"></select></div>
     <div><label>checkpoint</label><select id="s-ckpt"></select></div>
     <div><label>layer</label><select id="s-layer"></select></div>
+    <div><label>show</label><select id="s-only">
+      <option value="all">all directions</option>
+      <option value="flag">only flagged</option>
+    </select></div>
   </div>
   <div class="stats" id="s-stats"></div>
   <div class="spec" id="s-spec"></div>
+  <div class="note"><b>Flags are axis probes, not labels.</b> A flag means the
+  direction separates that axis's held-out word pairs more than 99% of random
+  directions do, Bonferroni-corrected across all 10 axes so the family-wise rate
+  stays at 1%. The header of each run reports how many flags are expected by chance.
+  A flag does <i>not</i> mean the direction is only about that axis, and it does not
+  mean it is causal: steering showed the orthography direction moves
+  <code>-our/-or</code> but not <code>-ise/-ize</code>, so a readout label can be
+  broader than what the direction controls.</div>
   <div class="note"><b>Both sides of a plain-J direction read the same.</b> Since
   <code>J v_i = &sigma;_i u_i</code> exactly and the readout normalises, reading
   <code>u</code> and reading <code>J&middot;v</code> are the same operation here.
@@ -278,6 +385,10 @@ fine-tuning changed, read from both sides.</p>
     <div><label>from</label><select id="d-a"></select></div>
     <div><label>to</label><select id="d-b"></select></div>
     <div><label>layer</label><select id="d-layer"></select></div>
+    <div><label>show</label><select id="d-only">
+      <option value="all">all directions</option>
+      <option value="flag">only flagged</option>
+    </select></div>
   </div>
   <div class="stats" id="d-stats"></div>
   <div class="spec" id="d-spec"></div>
@@ -292,6 +403,13 @@ fine-tuning changed, read from both sides.</p>
 </div>
 
 <div class="panel" id="p-steer">
+  <h3 style="margin-top:6px">The experiment</h3>
+  <p style="font-size:14px;color:var(--ink2);max-width:78ch">A shift number is not
+  something anyone can check. These are the two axes that survived validation, run
+  end to end: add <code>&alpha;&middot;v&#770;</code> to the residual stream at one
+  layer and read what the model actually writes.</p>
+  <div id="demos"></div>
+  <h3>Every direction</h3>
   <div class="ctrl">
     <div><label>run</label><select id="st-src"></select></div>
     <div><label>show</label><select id="st-filter">
@@ -406,16 +524,21 @@ def main():
                         f'<figcaption>{cap}</figcaption></figure>')
 
     body = HTML.replace("FIGURES", "\n".join(figs))
+    demo = json.loads(Path("out/steer_demo.json").read_text()) \
+        if Path("out/steer_demo.json").exists() else {}
     boot = f"""
 const DATA={json.dumps(data)};
 const STEER={json.dumps(steer)};
+const DEMO={json.dumps(demo)};
 fillSel($('#s-model'),modelOpts()); fillSel($('#d-model'),modelOpts());
 fillSel($('#st-src'),Object.keys(STEER).map(k=>({{v:k,l:k}})));
-$('#s-model').onchange=syncSub; $('#s-ckpt').onchange=drawSub; $('#s-layer').onchange=drawSub;
+$('#s-model').onchange=syncSub; $('#s-ckpt').onchange=drawSub;
+$('#s-layer').onchange=drawSub; $('#s-only').onchange=drawSub;
+$('#d-only').onchange=drawDiff;
 $('#d-model').onchange=()=>{{$('#d-a').value='';$('#d-b').value='';syncDiff();}};
 ['#d-a','#d-b','#d-layer'].forEach(s=>$(s).onchange=drawDiff);
 $('#st-src').onchange=drawSteer; $('#st-filter').onchange=drawSteer;
-syncSub(); syncDiff(); drawSteer();
+syncSub(); syncDiff(); drawSteer(); drawDemos();
 const lb=document.getElementById('lb'),i2=document.getElementById('lbi');
 document.querySelectorAll('figure img').forEach(i=>i.onclick=()=>{{i2.src=i.src;lb.showModal();}});
 lb.onclick=()=>lb.close();
