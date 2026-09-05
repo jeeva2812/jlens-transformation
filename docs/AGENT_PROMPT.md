@@ -48,6 +48,33 @@ Each file is a dict: `{"layers": [...], "target": int, "J": {layer: Tensor}}`.
 
 For each direction, in this order. **Do not skip step 3.**
 
+### The pipeline, and where it stops
+
+```
+   read the direction's tokens
+            |
+   coherent label visible?  ── NO ──>  record verdict: no-hypothesis.  STOP.
+            |                          Do NOT steer. Next direction.
+           YES
+            |
+   propose axis + held-out pairs, run the random null
+            |
+   beats the null?  ── NO ──>  record verdict: rejected.  STOP.
+            |                  Do NOT steer. Next direction.
+           YES
+            |
+   record verdict: validated  ──>  NOW steer it (step 4)
+```
+
+**Steering is gated on a validated label, and only on that.** An unlabelled
+direction may well move the model, but with no prediction there is nothing to
+check it against — "it changed something" is not a result. The same applies to a
+direction whose hypothesis *failed* the null: the prediction was tested and lost,
+so steering it tests nothing.
+
+This gate is what makes 840 directions affordable. Expect to steer **~40 of
+them**. If you find yourself steering hundreds, the gate is broken.
+
 ### Step 1 — enumerate directions
 
 For a given `(model, layer)`, compute both families:
@@ -99,7 +126,7 @@ against many axes, so correct for it). Flag only if `|score| > threshold`.
 
 Record `verdict: validated | rejected | no-hypothesis`.
 
-### Step 4 — steer, only the validated ones
+### Step 4 — steer (validated directions ONLY — see the gate above)
 
 Write 3 prompts that **force the contrast** (for gender, prompts that must produce
 a pronoun; for spelling, mid-word prompts where the next token *is* the choice).
