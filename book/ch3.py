@@ -116,17 +116,40 @@ but &ldquo;by how much, compared to random&rdquo;:</p>
 one is not, and only magnitude tells them apart. I had asserted the second one before
 running this.</p>
 
-<h4>Turning it into a tool</h4>
+<h4>Turning it into a tool: the axis probe</h4>
 
-<p>This became an automated check applied to every direction in the project. Ten named
-axes &mdash; spelling, gender, plural, past tense, code-versus-prose, formality,
-capitalisation, negation, questions &mdash; each defined by word pairs, each scored
-against a random null.</p>
+<p>This became an automated check applied to every direction in the project, and it is
+used throughout the rest of this book under the name <strong>axis probe</strong>. It is
+worth stating precisely, because it is the main instrument for everything that follows.</p>
+
+<div class="aside key"><span class="lbl">What an axis probe is</span>
+<p>An <strong>axis</strong> is a named idea, defined by a list of word pairs that differ
+only in that idea:</p>
+<pre style="margin:11px 0;background:none;padding:0">gender:      (he, she)   (his, her)   (king, queen)   (father, mother)  …
+US/UK:       (color, colour)   (honor, honour)   (realize, realise)  …
+past tense:  (walk, walked)   (play, played)   (work, worked)  …</pre>
+<p>To <strong>probe</strong> a direction on an axis: read the direction through
+<code>W_U</code>, then measure how far apart it pushes the two halves of every pair, and
+average. A direction that genuinely encodes the idea will separate pairs it has never
+been shown.</p>
+<p>Then compare against <strong>300 random directions</strong> scored the same way. The
+direction &ldquo;clears the probe&rdquo; if it separates the pairs by more than 99% of
+random directions do &mdash; by <em>magnitude</em>, never by consistency, for the reason
+above.</p>
+<p>One correction is needed. Testing every direction against ten axes at a 99% threshold
+lets roughly 10% of pure noise clear <em>something</em>. So the threshold is tightened to
+keep the overall false-positive rate at 1%. My first run, uncorrected, flagged 53 of 250
+directions with about 25 expected by chance &mdash; which is not a finding.</p></div>
+
+<p>Ten axes are used throughout: spelling (two kinds), gender, plural, past tense,
+code-versus-prose, formal register, capitalisation, negation, and questions.</p>
 
 <p>One more correction was needed. Testing every direction against ten axes at a
 &ldquo;99th percentile&rdquo; threshold lets about 10% of pure noise clear
 <em>something</em>. My first run flagged 53 of 250 directions with roughly 25 expected by
 chance, which is not a finding. Correcting the threshold for the ten simultaneous tests:</p>
+
+<p>Applied at scale, after that correction:</p>
 
 <table>
 <tr><th>model</th><th>directions flagged</th><th>expected by chance</th></tr>
@@ -134,6 +157,15 @@ chance, which is not a finding. Correcting the threshold for the ten simultaneou
 <tr><td>Olmo 3 7B</td><td class="n">960 of 1584</td><td class="n">~16</td></tr>
 <tr><td>Qwen2.5-0.5B</td><td class="n">83 of 750</td><td class="n">~8</td></tr>
 </table>
+
+<div class="aside warn"><span class="lbl">What a flag does and does not mean</span>
+<p>It means: <em>this direction separates that axis's held-out word pairs more than 99%
+of random directions do.</em></p>
+<p>It does <strong>not</strong> mean the direction is only about that axis. It does not
+mean the direction is causal &mdash; Chapter 10 shows the spelling direction moves
+<code>-our/-or</code> pairs but not <code>-ise/-ize</code> ones, so the label is broader
+than what the direction actually controls. And an <em>unflagged</em> direction is not
+meaningless; the probes only test ten crude English axes, which is a very narrow net.</p></div>
 
 <div class="aside key"><span class="lbl">The check that it works</span>
 <p>Run on a <em>randomly initialised</em> model it flags <strong>zero</strong>
