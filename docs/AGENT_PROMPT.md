@@ -72,7 +72,7 @@ check it against — "it changed something" is not a result. The same applies to
 direction whose hypothesis *failed* the null: the prediction was tested and lost,
 so steering it tests nothing.
 
-This gate is what makes 840 directions affordable. Expect to steer **~40 of
+This gate is what makes 1480 directions affordable. Expect to steer **~70 of
 them**. If you find yourself steering hundreds, the gate is broken.
 
 ### Step 1 — enumerate directions
@@ -198,13 +198,33 @@ on directions that earn it.
 
 One unit = `(model, matrix, layer, family)`, **top 20 directions each**:
 
-| model | matrix | layers | families | units | directions |
+**Use every layer that was saved.** These files do not contain all of the model's
+layers — the Jacobians were computed at a stride — so "all layers" below means
+all the ones on disk, which is what the report must say.
+
+| model | matrix | layers available (model total) | families | units | directions |
 |---|---|---|---|---|---|
-| SmolLM2 `out/ft/J_step0.pt` | J | 4,8,12,16,20,24 | svd, eigen | 12 | 240 |
-| SmolLM2 `step600 − step0` | ΔJ | 4,8,12,16,20,24 | svd, eigen | 12 | 240 |
-| Qwen `out/em05_emprompts/J_base.pt` | J | 4,8,12,16,20 | svd, eigen | 10 | 200 |
-| Llama `out/llama_em/J_base.pt` | J | 0,4,8,12 | svd, eigen | 8 | 160 |
-| | | | | **42** | **840** |
+| SmolLM2 `out/ft/J_step0.pt` | J | 0,2,…,26 — 14 of 30 | svd, eigen | 28 | 560 |
+| SmolLM2 `step600 − step0` | ΔJ | same 14 | svd, eigen | 28 | 560 |
+| Qwen `out/em05_emprompts/J_base.pt` | J | 4,8,12,16,20 — 5 of 24 | svd, eigen | 10 | 200 |
+| Llama `out/llama_em/J_base.pt` | J | 0,4,8,12 — 4 of 16 | svd, eigen | 8 | 160 |
+| | | | | **74** | **1480** |
+
+Layer 28 is SmolLM2's target, where `J` is the identity by construction, so it is
+excluded — there is nothing there to label.
+
+**A caveat the report must state.** Adjacent layers share roughly 0.56 of their
+reading subspace against a chance level of 0.106, so layers 0 and 2 will return
+similar directions. Full coverage of the saved layers is still worth having, but
+1480 directions are not 1480 independent observations, and the write-up should
+not imply they are.
+
+**Optional stretch, only if everything else is done and reported:** Olmo 3 7B in
+`out/ckpt/J_main.pt`, 16 layers at 4096 dims. Its readouts need
+`out/readout_head.pt` (788 MB, holds `W_U` and the final norm — no model load
+required). Budget carefully: one SVD is ~40s and one eigendecomposition is
+several minutes at that size, so the 32 decompositions alone are a couple of
+hours before any labelling.
 
 **Spawn subagents over these units.** Each subagent:
 
@@ -216,7 +236,7 @@ One unit = `(model, matrix, layer, family)`, **top 20 directions each**:
 SmolLM2 subagents, 3 Qwen, or 2 Llama concurrently.** Group units by model so a
 subagent loads one model, not three. Do not exceed ~12 GB total.
 
-**Do SmolLM2 J first** (units 1–12). It is the model everything else here was
+**Do SmolLM2 J first** (units 1–28). It is the model everything else here was
 validated on, so if your pipeline is broken it will show there first and cheapest.
 Report after that batch before continuing.
 
@@ -298,7 +318,7 @@ Raise in `OPEN_QUESTIONS.md` (and continue) when:
 - any result contradicts something asserted in this prompt
 
 **One exception where you should genuinely stop:** if the SmolLM2 J batch
-(units 1–12) produces a validated fraction above ~50% or below ~2%, halt and
+(units 1–28) produces a validated fraction above ~50% or below ~2%, halt and
 write up why before spending the remaining 600 directions. Everything after that
 batch is only worth running if the pipeline is behaving.
 
