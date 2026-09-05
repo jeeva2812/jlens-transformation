@@ -43,6 +43,60 @@ PROBES = {
   "code vs prose": ["The function takes a",
                     "def load_config(path):\n    #",
                     "The report was finished on Tuesday and"],
+  "capitalised": ["She works for a company called",
+                  "They moved to a town named",
+                  "He read a book written by"],
+  "past tense": ["Every day he walks to work. Yesterday he",
+                 "She usually cooks dinner, but last night she",
+                 "They normally play outside. Last week they"],
+  "negation": ["The study found that the treatment",
+               "He looked at the results and said the effect",
+               "The report concluded that the policy"],
+  "temporal opposition": ["The meeting was scheduled for long",
+                          "Arriving early means waiting, but arriving late means",
+                          "The project began in January and ended in"],
+  "positive vs negative polarity": ["He is always",
+                          "There is nothing left, but there is still",
+                          "Everyone agreed, yet nobody"],
+  "present vs past participle": ["He has already",
+                          "They have",
+                          "She had"],
+  "reflexive": ["He blamed",
+                "She taught",
+                "They prepared"],
+  "cardinal vs ordinal": ["He finished the race in",
+                          "She came in",
+                          "The final standings put him in"],
+  "un-negation": ["The news made her feel",
+                  "His response was",
+                  "The outcome was"],
+  "verb vs agent noun": ["The person who teaches is called a",
+                         "She works as a professional",
+                         "He drives for a living; he is a"],
+  "plural": ["On the kitchen table there was a",
+             "In the garden I could see a",
+             "He opened the box and found a"],
+  "base vs intensified": ["The performance was not just good, it was",
+                          "The mountain was not big, it was",
+                          "She was not happy, she was"],
+  "infinitive vs gerund": ["He enjoys",
+                           "She finished",
+                           "They kept"],
+  "base vs 3rd-person-sg": ["Every day he",
+                            "She usually",
+                            "The dog always"],
+  "declarative vs interrogative": ["I wonder",
+                          "She asked",
+                          "They want to know"],
+  "singular vs plural pronouns": ["The student finished homework and then",
+                          "The committee announced that",
+                          "After the game the player said"],
+  "subject vs object pronouns": ["The manager praised",
+                          "She gave the book to",
+                          "Between you and"],
+  "US/UK misc": ["The sky over the city was",
+                 "My mother always told me",
+                 "The mechanic said the car needs"],
 }
 
 MASC = {"he","him","his","himself","man","boy","father","son","brother","king"}
@@ -80,7 +134,7 @@ def main():
     # SVD/EIG vectors per layer (recompute; cheap for 576)
     vecs = {}
     for L, J in Jdict.items():
-        if L not in (4, 8, 12, 16, 20, 24):
+        if L == 28:
             continue
         Jf = J.float()
         U, S, Vh = torch.linalg.svd(Jf)
@@ -286,6 +340,131 @@ def check_text(ax, prompt, base, plus, minus, sgn, tok):
             w = words(t)
             return sum(1 for x in w if x in code)
         # pairs A=prose B=code; sgn>0: + promotes code
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "past tense":
+        pres = {"walk","play","work","look","want","need","start","call","open"}
+        past = {"walked","played","worked","looked","wanted","needed","started","called","opened",
+                "answered","benefited","melted","confessed","drank","injected"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in past) - sum(1 for x in w if x in pres)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "capitalised":
+        up = {"Apple","John","London","Monday","River","King","Street","Manufacturers","Consumers"}
+        lo = {"apple","john","london","monday","river","king","street","manufacturers","consumers"}
+        def sc(t):
+            w = re.findall(r"[A-Za-z]+", t)  # case-sensitive
+            return sum(1 for x in w if x in up) - sum(1 for x in w if x in lo)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "negation":
+        neg = {"not","never","nothing","cannot","without","no","n't","incorrectly","unexpected","instead"}
+        def sc(t):
+            return sum(1 for x in words(t) if x in neg)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "temporal opposition":
+        A = {"before","early","morning","today","past","start","begin","first"}
+        B = {"after","late","night","evening","tomorrow","future","end","last"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "positive vs negative polarity":
+        A = {"always","everything","everyone","everybody","all","ever","anything","anyone"}
+        B = {"never","nothing","nobody","none"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "present vs past participle":
+        A = {"eat","write","break","choose","drive","give","take","see"}
+        B = {"eaten","written","broken","chosen","driven","given","taken","seen"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "reflexive":
+        A = {"him","her","them","me","us","you"}
+        B = {"himself","herself","themselves","myself","ourselves","yourself"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "cardinal vs ordinal":
+        A = {"one","two","three","four","five","six","seven","eight"}
+        B = {"first","second","third","fourth","fifth","sixth","seventh","eighth"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "un-negation":
+        A = {"happy","fair","known","clear","safe","able","usual","kind"}
+        B = {"unhappy","unfair","unknown","unclear","unsafe","unable","unusual","unkind"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "verb vs agent noun":
+        A = {"teach","work","play","run","write","read","drive","farm","hunt","manage"}
+        B = {"teacher","worker","player","runner","writer","reader","driver","farmer","hunter","manager"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "plural":
+        A = {"dog","cat","house","car","book","tree","year","hand","word","group"}
+        B = {"dogs","cats","houses","cars","books","trees","years","hands","words","groups"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "base vs intensified":
+        A = {"good","bad","big","small","happy","sad","angry","tired"}
+        B = {"excellent","terrible","huge","tiny","delighted","miserable","furious","exhausted"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "infinitive vs gerund":
+        A = {"walk","play","work","look","want","need","start","call","open","talk"}
+        B = {"walking","playing","working","looking","wanting","needing","starting","calling","opening","talking"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "base vs 3rd-person-sg":
+        A = {"walk","play","work","look","want","need","start","call","open","talk"}
+        B = {"walks","plays","works","looks","wants","needs","starts","calls","opens","talks"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "declarative vs interrogative":
+        A = {"he","him","his","it","there","then"}
+        B = {"who","whom","whose","what","where","when"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "singular vs plural pronouns":
+        A = {"he","him","his","himself","she","her","hers","herself"}
+        B = {"they","them","their","themselves"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "subject vs object pronouns":
+        A = {"he","she","they","we","i","who"}
+        B = {"him","her","them","us","me","whom"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
+        return (sc(plus) - sc(minus)) * sgn > 0
+    if ax == "US/UK misc":
+        A = {"gray","tire","mom","aluminum"}
+        B = {"grey","tyre","mum","aluminium"}
+        def sc(t):
+            w = words(t)
+            return sum(1 for x in w if x in B) - sum(1 for x in w if x in A)
         return (sc(plus) - sc(minus)) * sgn > 0
     return False
 
