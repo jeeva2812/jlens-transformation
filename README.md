@@ -1,92 +1,138 @@
 # jlens-transformation
 
-Does the J-Lens itself change during training, and can we tell that apart from
-the model's representations changing?
+A red-team characterisation of **J-Lens** — a lens that reads a transformer's
+intermediate activations by computing a Jacobian from the weights, with no
+training.
 
-## Why this is a question at all
+    J_ℓ = E_prompt[ ∂h_target / ∂h_ℓ ]        readout(d) = softmax(W_U · norm(J_ℓ d))
 
-J-Lens is not a trained probe. It is computed from the weights:
+Because nothing is trained, J can be computed at every checkpoint of a model's
+history for the price of a backward pass. That is the whole reason the
+training-dynamics results here exist.
 
-    J_l = E[ d h_final / d h_l ]        lens vectors = rows of  W_U @ J_l
+---
 
-So when a model is fine-tuned, the lens moves *and* the activations move, at the
-same time, for the same reason. A change in what the lens reads out is therefore
-ambiguous by default. The four-way readout below resolves it.
+## The two results worth your time
 
-|              | activations before | activations after |
-|--------------|--------------------|-------------------|
-| lens before  | baseline           | did the representation change? |
-| lens after   | did the instrument move? | what training actually produced |
+**1. Read with eigenvectors; steer with singular vectors.**
 
-The off-diagonals are the point.
+| task | eigenvectors | singular vectors | n per family |
+|---|---|---|---|
+| clears a held-out axis probe | **39.6%** | 20.8% | 96 |
+| steers as its readout predicts | 44.4% | **75.0%** | 36 |
 
-## Plan
+`J` maps the residual stream *to itself*, so eigenvectors are the type-correct
+object for reading it. Weyl's inequality (`σ₁ ≥ |λ₁|`) says why singular vectors
+win steering: at fixed injection norm they must deliver the larger perturbation.
+The size of that advantage tracks the departure from normality at **r = +0.68**
+and vanishes at the target layer, where `Φ(T,T) = I` forces the two to coincide.
 
-0. **Verify the harness.** Reimplement the lens for `qwen3.5-4b` and check it
-   reproduces the published lens from `camilablank/workspace-lenses`. Nothing
-   downstream means anything until this passes.
-1. **Walk the checkpoints.** Olmo 3 publishes intermediate revisions; compute a
-   partial lens at each and track how far each concept's lens vector rotates.
-2. **Split the stages.** Base -> SFT -> DPO -> RLVR are separate checkpoints.
-   Which stage installs which structure?
-3. **Control.** Fine-tune on unrelated data and measure how much the lens drifts
-   anyway. The lens is a global average over prompts, so *any* weight update
-   perturbs it. Without this arm the whole thing is uninterpretable.
+**2. Depth is a lever, and fine-tuning spends against it.**
 
-## Cost
+Grafting one fine-tuned layer onto a base model at a time, so an edit's position
+sweeps at fixed size:
 
-We never build the full d_model x d_model Jacobian. Row k of `W_U @ J_l` is one
-VJP seeded with token k's unembedding row, so K concept tokens cost K backward
-passes per prompt. K=50, 64 prompts, a handful of checkpoints: minutes on one
-GPU. Disk is the real constraint -- 14 GB per 7B checkpoint, so the runner
-deletes each one after use.
+| quantity | corr. with depth | earliest vs latest |
+|---|---|---|
+| effect per unit ‖ΔW‖ — real fine-tuned layer | −0.860 | **3.69×** |
+| effect per unit ‖ΔW‖ — random noise, matched norm | −0.915 | **4.03×** |
+| ‖ΔW‖ the adapter actually placed there | **+0.947** | — |
 
-## Status
+Random noise shows the same gradient, so this is architecture — depth left to
+compound through. And the adapter puts *more* weight change late, where each unit
+buys least.
 
-**Step 0 passes.** Our lens reproduces the published `qwen3.5-4b` J-Lens at
-layer 20: mean cosine **0.9984**, mean magnitude ratio **0.9985** across 12
-concept tokens. The residual gap is float16 storage of the published J plus
-device precision. The harness is trustworthy; the Olmo sweep is unblocked.
+## One retraction, recorded rather than deleted
 
-Getting there took four wrong conventions, none of which produced a visible
-symptom:
+I claimed J amplifies the directions the model occupies *least* and built a
+framing on it. It was an artefact of one massive-activation direction carrying up
+to 99.8% of the variance; removing it reverses the sign at every layer
+(+0.229 → −0.856). A second finding died to the same artefact. **Both had passed
+a random-direction null; the null they needed was "remove the outlier dimensions
+first."** See `occupancy_control.py`.
 
-| # | wrong | right | cost if shipped |
-|---|-------|-------|-----------------|
-| 1 | destination = final pre-norm residual | `target_layer=30` of 32 blocks | different matrix entirely |
-| 2 | kept the last source position | mask is `[skip_first, len-1)` | spurious near-identity term |
-| 3 | pooled position normalisation | per-prompt mean, then over prompts | long prompts over-weighted |
-| 4 | "layer l" = residual entering block l | = residual **leaving** block l | neighbouring layer's Jacobian |
+## Why J behaves this way
 
-Number 4 was the big one, and the offset sweep shows why it was hard to see:
+Treating depth as time makes a residual network `dh/dt = F(t,h)`, whose linearised
+sensitivity is the state-transition matrix — so **`J_ℓ = Φ(T,ℓ)`**. Verified by the
+semigroup property (`ode_view.py`): composition holds at rel. err 0.256 against an
+identity control at 0.744.
 
+It follows that `J − I ≈ A·Δt` recovers the generator, that `σ` gives finite-time
+Lyapunov exponents, and that `Jᵀ` is the gradient propagator — so `|λ|>1` is an
+exploding-gradient channel. Training collapses those from **2102 → 32** at layer 8.
+
+---
+
+## Reading the code
+
+Start here:
+
+| file | what it does |
+|---|---|
+| `jlens/lens.py` | the core — Jacobians, readouts, multi-layer capture |
+| `jlens/verify.py` | reproduces a published lens (cosine 0.9984) with a layer-offset sweep |
+| `jlens/axes.py` | **the axis probe** — scores a direction against held-out word pairs with a Bonferroni-corrected random null |
+
+**Interventions**
+
+| file | what it does |
+|---|---|
+| `assay_uv.py` | steering, u vs v head-to-head — the type-error correction |
+| `steer_demo.py`, `steer_gallery.py` | steering with generated text, per semantic axis |
+| `steer_compare.py`, `ablate_compare.py` | four direction families, injected and ablated |
+| `hybrid_steer.py` | eigenvector semantics delivered through the SVD |
+
+**Decompositions**
+
+| file | what it does |
+|---|---|
+| `eigen.py`, `eigen_vs_svd.py` | eigendecomposition and the head-to-head |
+| `eigen_training.py` | the eigenspectrum across 11 Olmo checkpoints |
+| `decomp_shootout.py` | six families scored on the axis probes |
+| `theory_check.py` | Weyl, Henrici, and the boundary condition at the target layer |
+
+**Change over time**
+
+| file | what it does |
+|---|---|
+| `birth.py`, `ft_birth.py` | which directions are born when |
+| `olmo_delta_svd.py` | ΔJ across training phases, both sides read |
+| `two_time.py`, `position_sweep.py` | the ΔJ integral and the depth-lever sweep |
+| `occupancy_control.py` | **the control that produced the retraction** |
+
+**Outputs** (`out/`, gitignored — regenerate or fetch from HF)
+
+| file | what it is |
+|---|---|
+| `BOOK.html` | the whole project as a narrative, from first principles |
+| `SUMMARY.html` | one-screen visual summary |
+| `INDEX.html` | 55 entries: every question, result and status |
+| `EXPLORER.html` | browse subspaces by model / checkpoint / layer |
+| `STEERING.html` | every steering axis attempted, including the failures |
+
+## Reproducing
+
+```bash
+uv venv && uv pip install -r requirements.txt
+python -m jlens.verify            # the external check: cosine 0.9984
+python -m jlens.assay_uv          # steering, u vs v
+python -m jlens.eigen_vs_svd      # eigen vs SVD on the axis probes
+python -m jlens.position_sweep    # the depth lever
 ```
-pub layer  offset  cosine   scale
-       19      -1  0.9592  1.0374
-       20      +0  0.9984  0.9985   <-- correct convention
-       21      +1  0.9709  0.9564
-```
 
-Adjacent layers agree at ~0.96. A wrong layer index does not look like a bug --
-it looks like a slightly noisy result.
+Jacobians and analysis outputs: **`jeeva2812/olmo3-jlens-checkpoints`** on
+HuggingFace (Olmo 3 7B across 11 checkpoints, Qwen2.5-0.5B and Llama-3.2-1B EM
+organisms, ~9,900 direction readouts).
 
-### Known-correct-so-far
+## Honest scope
 
-- Residuals are taken off forward hooks, not `output_hidden_states`. HF returns
-  the POST-norm final hidden state (`Olmo3Model.forward` calls `self.norm(...)`
-  after the decoder loop), and J-Lens needs the PRE-norm residual. Using
-  `hidden_states[-1]` here computes a different Jacobian and looks fine.
-- `data/prompts.txt` is the fixed 64-prompt set. Use the same one at every
-  checkpoint so prompt noise cancels in the comparison.
+Of ~9,900 direction readouts here, **one** has a full validation chain (readout →
+held-out probe → 500-random null → causal steering → changed text). J-Lens is a
+**sensitivity map, not a feature dictionary** — for finding features an SAE is
+likely better. Its edge is being free and checkpoint-portable.
 
-## Verified so far
-
-`tests/test_lens_math.py` checks the claim the project rests on, against a
-brute-force Jacobian on a 135M model:
-
-- one backward pass seeded at every final position == the explicit sum over
-  `t' >= t` of per-position backward passes (rel. error ~2e-6, float32 noise)
-- seeding position 0 alone leaks exactly zero gradient to `t > 0`, confirming the
-  causal mask makes the `t' >= t` restriction implicit
-
-Run it with `PYTHONPATH=. .venv/bin/python tests/test_lens_math.py`.
+Steering numbers are the corrected path (inject `v`, read `u`). Anything citing
+46%, 42%, or a sharp depth profile came from an earlier version that injected
+`u`, which is a type error. The emergent-misalignment thread failed to replicate
+across architectures and should not be cited.
