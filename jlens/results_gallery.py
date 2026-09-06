@@ -214,12 +214,13 @@ def main():
                        ("Tested + control", "<table>" + rows + "</table>direct/transfer per cell."),
                    ])))
 
-    # 11 diverse
+    # 11 diverse (+ full prompt/response/control evidence)
     for fn, tag in [("diverse_small.json", "≤1B"), ("diverse_big.json", "4B/7B")]:
         dv = load(fn)
         if not dv:
             continue
         rows = ""
+        det = ""
         for model, m in dv.items():
             if not isinstance(m, dict):
                 continue
@@ -231,6 +232,15 @@ def main():
                 d, t = r.get("direct", 0) or 0, r.get("transfer", 0) or 0
                 cls = "good" if d > 2 and t > 0.5 else ("part" if d > 0.5 else "bad")
                 cells += f"<td class='{cls}' title='{E(field)}'>{d:+.1f}/{t:+.1f}</td>"
+                if all(k in r for k in ["dp", "gen_direct"]):
+                    det += (f"<tr><td>{E(model.split('/')[-1])} [{E(field)}]</td>"
+                            f"<td>{E(r['dp'])} → {E(r['want'])}<br>{E(r['tp'])} → {E(r['twant'])}</td>"
+                            f"<td>{r['direct']:+.2f}/{r['direct_rand']:+.2f}<br>"
+                            f"<span class='gen'>{E(r.get('gen_direct', '')[:100])}</span><br>"
+                            f"<span class='gen'>rand: {E(r.get('gen_direct_rand', '')[:80])}</span></td>"
+                            f"<td>{r['transfer']:+.2f}/{r['transfer_rand']:+.2f}<br>"
+                            f"<span class='gen'>{E(r.get('gen_transfer', '')[:100])}</span><br>"
+                            f"<span class='gen'>rand: {E(r.get('gen_transfer_rand', '')[:80])}</span></td></tr>")
             rows += f"<tr><td>{E(model.split('/')[-1])}</td>{cells}</tr>"
         P.append(S(f"12. Diverse fields ({tag}): tech planet sport food currency",
                    exp_row([
@@ -238,7 +248,8 @@ def main():
                        ("Prompts (find)", "Dictionary direction; tested e.g. 'The iPhone is made by' + 'Tim Cook is CEO of'."),
                        ("How steered", "Mid-layer all-positions, push 6, random control."),
                        ("Tested + control", "<table>" + rows + "</table>"),
-                   ])))
+                   ]) + (f"<table><tr><th>model[field]</th><th>prompts</th><th>direct pb/rand + text / rand-text</th>"
+                         f"<th>transfer pb/rand + text / rand-text</th></tr>{det}</table>" if det else "")))
 
     # 12 big
     bq = load("big_qwen35_a05.json")

@@ -89,6 +89,24 @@ def main():
             iw = ids1(want)
             return float(lp[iw[0]] - base[iw[0]]) if len(iw) == 1 else None
 
+        def gen_top(prompt, dvec=None):
+            e = tok(prompt, return_tensors="pt")
+            ids = e["input_ids"].to(dev)
+
+            def hook(m, i, o):
+                t = o if torch.is_tensor(o) else o[0]
+                t2 = t + (PUSH * dvec).to(t.device, t.dtype)
+                return t2 if torch.is_tensor(o) else (t2,) + tuple(o[1:])
+
+            h = blocks[L].register_forward_hook(hook) if dvec is not None else None
+            with torch.no_grad():
+                out = model.generate(input_ids=ids, attention_mask=torch.ones_like(ids),
+                                     max_new_tokens=15, do_sample=False,
+                                     pad_token_id=tok.eos_token_id)
+            if h is not None:
+                h.remove()
+            return tok.decode(out[0][ids.shape[1]:]).strip()[:120]
+
         for field, dp, was, want, tp, twas, twant in SCENARIOS:
             if not all(len(ids1(x)) == 1 for x in [was, want, twas, twant]):
                 mres[field] = {"skip": "multi-token"}
@@ -98,8 +116,11 @@ def main():
             rnd = torch.randn(d.shape[0], generator=g)
             rnd = rnd / rnd.norm()
             row = {"direct": dlogp(dp, want, d), "direct_rand": dlogp(dp, want, rnd),
-                   "transfer": dlogp(tp, twant, d), "transfer_rand": dlogp(tp, twant, rnd)}
-            mres[field] = {k: (round(v, 2) if v is not None else None) for k, v in row.items()}
+                   "transfer": dlogp(tp, twant, d), "transfer_rand": dlogp(tp, twant, rnd),
+                   "dp": dp, "want": want, "tp": tp, "twant": twant,
+                   "gen_direct": gen_top(dp, d), "gen_direct_rand": gen_top(dp, rnd),
+                   "gen_transfer": gen_top(tp, d), "gen_transfer_rand": gen_top(tp, rnd)}
+            mres[field] = {k: (round(v, 2) if isinstance(v, float) else v) for k, v in row.items()}
             print(f"  {field}: direct {row['direct']:+.2f}/{row['direct_rand']:+.2f} "
                   f"transfer {row['transfer']:+.2f}/{row['transfer_rand']:+.2f}")
         all_out[mid] = mres
