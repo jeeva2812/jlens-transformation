@@ -20,3 +20,10 @@ Identical generations word-for-word; random flat. Three whispers do NOT beat
 one whisper here — 0.006 is still strong enough that single saturates the
 logprob flip (generations still lead with "Paris…", so the flip is partial).
 Compounding, if it exists, needs total-α ≈ 0.002 where single is truly weak.
+
+## Update 2: full dose at EVERY layer (3× total, α=0.06) — overdose
+Single L8 @0.06: direct +6.50, transfer **−4.05**. Multi 3×0.02: +6.17/−4.55.
+Direct logprobs stay saturated but generations degenerate ("Vestramere"),
+transfer destroyed, math breaks ("three by 1}…"), water breaks. Random stays
+coherent throughout. More is not better: 0.06 is overdose in every
+configuration. The window is ~0.006–0.02 total; outside it, nothing compares.
