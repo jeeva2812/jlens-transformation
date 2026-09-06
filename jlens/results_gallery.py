@@ -73,20 +73,23 @@ def main():
                         + rows + "</table>Pullback wins every layer; hard top-k loses."),
                    ])))
 
-    # 3 rename (all sections incl control + unrelated)
-    rn = load("rename_eval_clean.json")
-    if rn:
+    # 3 rename (BOTH doses: clean whisper vs strong — the dose-response story)
+    for fn, dose in [("rename_eval_clean.json", "clean α=0.002"),
+                     ("rename_eval.json", "strong α=0.02")]:
+        rn = load(fn)
+        if not rn:
+            continue
         for sec in ["direct", "transfer", "control"]:
             rows = "".join(
                 f"<tr><td>{E(r['prompt'])} → {E(r['want'])}<br>base logP {r['base_want']:.2f}</td>"
                 + "".join(f"<td>{r[k]['d_want']:+.2f}<br><span class='gen'>{E(r[k]['gen'][:90])}</span></td>"
                           for k in ["pullback", "raw", "random"]) + "</tr>"
                 for r in rn["sections"].get(sec, []))
-            P.append(S(f"3{'.' if sec == 'direct' else ''}. Rename [{sec}] (SmolLM2 L12 global, clean α)",
+            P.append(S(f"3. Rename [{sec}] ({dose}, SmolLM2 L12 global)",
                        exp_row([
                            ("Subspace sought", "Pullback L12 from pile J (same as §2)."),
                            ("Prompts (find)", "Pile-10k."),
-                           ("How steered", "ALL positions, α=0.002. Random same norm."),
+                           ("How steered", f"ALL positions, {dose}. Random same norm."),
                            ("Tested + control",
                             "<table><tr><th>prompt</th><th>pullback</th><th>raw</th><th>random</th></tr>"
                             + rows + "</table>"),
@@ -94,7 +97,7 @@ def main():
         un = "".join(f"<tr><td>{E(r['prompt'])}</td><td>{r['dir']}</td><td>TV {r['tv']}</td>"
                      f"<td class='gen'>{E(r['gen'][:90])}</td></tr>"
                      for r in rn["sections"].get("unrelated", []))
-        P.append(S("3u. Rename unrelated (same runs)",
+        P.append(S(f"3u. Rename unrelated ({dose})",
                    f"<table><tr><th>prompt</th><th>dir</th><th>drift</th><th>text</th></tr>{un}</table>"))
 
     # 4 geneig
