@@ -13,3 +13,10 @@ Yes, pushing 3 layers at once works fine (hooks compose, model stays
 coherent, random control flat). At this saturated dose multi ≈ single
 (+0.5 transfer edge only). The real question — multi winning at LOW total
 dose via compounding — needs total-α ≈ 0.006 split vs single. Not yet run.
+
+## Update: low dose (total α=0.006) — no compounding either
+Single L8 @0.006: direct +4.90, transfer +2.08. Multi @0.002×3: +4.95/+2.02.
+Identical generations word-for-word; random flat. Three whispers do NOT beat
+one whisper here — 0.006 is still strong enough that single saturates the
+logprob flip (generations still lead with "Paris…", so the flip is partial).
+Compounding, if it exists, needs total-α ≈ 0.002 where single is truly weak.

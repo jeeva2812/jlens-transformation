@@ -15,13 +15,14 @@ from jlens.lens import _find_blocks_and_norm
 
 MODEL = "unsloth/Llama-3.2-1B-Instruct"
 LAYERS = [6, 8, 10]
-ALPHA = 0.02
 
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--alpha", type=float, default=0.02)
     ap.add_argument("--out", type=Path, default=Path("out/multi_push.json"))
     a = ap.parse_args()
+    ALPHA = a.alpha
     dev = "mps" if torch.backends.mps.is_available() else "cpu"
     tok = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(MODEL, dtype=torch.float16,
