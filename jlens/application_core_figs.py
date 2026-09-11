@@ -410,10 +410,49 @@ def replication_figure(smol, qwen, olmo, out: Path):
     save(fig, out, "fig6_large_model_replication.png")
 
 
+def truncation_multimodel_figure(rank_smol, rank_qwen, rank_olmo, out: Path):
+    """Same truncation sweep on three models. Handles both row formats: the
+    SmolLM2 artifact is a bare list with integer k (full spectrum k=576);
+    the Qwen/OLMo artifacts are dicts with a 'rows' list and k='full'."""
+    def rows(obj):
+        return obj if isinstance(obj, list) else obj["rows"]
+
+    def curve(obj, full_key):
+        grouped = defaultdict(list)
+        for row in rows(obj):
+            k = row["k"]
+            k = "full" if str(k) == str(full_key) else int(k)
+            grouped[k].append(row["lift"])
+        return grouped
+
+    grid = [1, 4, 8, 16, 32, 64, 128, 256, "full"]
+    series = [
+        ("SmolLM2-135M", curve(rank_smol, 576), GREEN),
+        ("Qwen3.5-4B", curve(rank_qwen, "full"), BLUE),
+        ("OLMo-3-7B", curve(rank_olmo, "full"), ORANGE),
+    ]
+    fig, ax = plt.subplots(figsize=(8.8, 4.6))
+    x = np.arange(len(grid))
+    for name, grouped, color in series:
+        lift = [mean(grouped[k]) for k in grid]
+        ax.plot(x, lift, "o-", color=color, lw=2.2, label=name)
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(k) for k in grid])
+    ax.set_xlabel("Singular components retained (matched intervention dose)")
+    ax.set_ylabel("Mean held-out concept lift")
+    ax.set_title("One component is weak everywhere; whether the tail helps depends on the model")
+    ax.legend(frameon=False, loc="upper left")
+    save(fig, out, "fig2b_truncated_pullback_multimodel.png")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pullback", type=Path, default=Path("out/rare/pullback2.json"))
     parser.add_argument("--rank", type=Path, default=Path("out/rare/pullback_rank.json"))
+    parser.add_argument("--rank-qwen", type=Path,
+                        default=Path("out/rare/qwen35_4b_pullback_rank.json"))
+    parser.add_argument("--rank-olmo", type=Path,
+                        default=Path("out/rare/olmo3_7b_pullback_rank.json"))
     parser.add_argument("--chess-concepts", type=Path, default=Path("out/chess/concepts_big.json"))
     parser.add_argument("--chess-oracle", type=Path, default=Path("out/chess/q1_q2.json"))
     parser.add_argument("--robustness", type=Path, default=Path("out/rare/pullback_robustness.json"))
@@ -437,6 +476,9 @@ def main():
 
     pullback_figure(load(args.pullback), args.out)
     truncation_figure(load(args.rank), args.out)
+    truncation_multimodel_figure(
+        load(args.rank), load(args.rank_qwen), load(args.rank_olmo), args.out,
+    )
     conditioning_figure(load(args.chess_concepts), load(args.chess_oracle), args.out)
     robustness_figure(load(args.robustness), args.out)
     corpus_figure(load(args.corpus), args.out)

@@ -1,0 +1,206 @@
+{
+  "config": {
+    "model": "HuggingFaceTB/SmolLM2-135M",
+    "jall": "out/Jall_smollm2.pt",
+    "layer": 24,
+    "dir": 0,
+    "out": "out/rare/gender_axis.json"
+  },
+  "singular_value": 2.8441758155822754,
+  "cos_u_v": 0.9454643726348877,
+  "reads_as": {
+    "+U": [
+      " herself",
+      " her",
+      " she",
+      " hers",
+      "She",
+      "she",
+      " She",
+      " Her"
+    ],
+    "-U": [
+      " his",
+      " himself",
+      " he",
+      "his",
+      " him",
+      "His",
+      " His",
+      "him"
+    ],
+    "+V": [
+      " her",
+      " she",
+      " herself",
+      "She",
+      "she",
+      " She",
+      " hers",
+      " Her"
+    ],
+    "-V": [
+      " himself",
+      " his",
+      "his",
+      " he",
+      "His",
+      " him",
+      " His",
+      " Himself"
+    ]
+  },
+  "activation_scale": 3143.54296875,
+  "baseline": {
+    "mean": -0.5654264489809672,
+    "per_prompt": [
+      -1.4504010677337646,
+      -2.02496337890625,
+      -2.0985641479492188,
+      1.5684490203857422,
+      -0.5291118621826172,
+      1.1420327425003052
+    ],
+    "coherence": 3.824824571609497
+  },
+  "sweeps": {
+    "V (correct: source space)": [
+      {
+        "alpha": -0.05,
+        "log_ratio": -9.366698662439982,
+        "shift": -8.801272213459015,
+        "coherence": 5.382876396179199,
+        "random": -2.144008000691732
+      },
+      {
+        "alpha": -0.02,
+        "log_ratio": -7.542234659194946,
+        "shift": -6.976808210213979,
+        "coherence": 4.0295491218566895,
+        "random": -2.0723877350489297
+      },
+      {
+        "alpha": -0.01,
+        "log_ratio": -5.218257546424866,
+        "shift": -4.652831097443898,
+        "coherence": 3.9116921424865723,
+        "random": -0.20448702573776245
+      },
+      {
+        "alpha": -0.005,
+        "log_ratio": -3.0531348387400308,
+        "shift": -2.4877083897590637,
+        "coherence": 3.867431640625,
+        "random": -0.47334927320480347
+      },
+      {
+        "alpha": 0.0,
+        "log_ratio": -0.5654264489809672,
+        "shift": 0.0,
+        "coherence": 3.824824571609497,
+        "random": null
+      },
+      {
+        "alpha": 0.005,
+        "log_ratio": 2.7125043869018555,
+        "shift": 3.2779308358828225,
+        "coherence": 3.7931182384490967,
+        "random": -0.7230843702952067
+      },
+      {
+        "alpha": 0.01,
+        "log_ratio": 6.497324665387471,
+        "shift": 7.062751114368439,
+        "coherence": 3.7787342071533203,
+        "random": -0.7684527436892191
+      },
+      {
+        "alpha": 0.02,
+        "log_ratio": 11.196556886037191,
+        "shift": 11.761983335018158,
+        "coherence": 3.7863337993621826,
+        "random": 0.06858901182810466
+      },
+      {
+        "alpha": 0.05,
+        "log_ratio": 13.480667114257812,
+        "shift": 14.046093563238779,
+        "coherence": 4.0948381423950195,
+        "random": 0.40361566344896954
+      }
+    ],
+    "U (original: target space)": [
+      {
+        "alpha": -0.05,
+        "log_ratio": -11.642995834350586,
+        "shift": -11.07756938536962,
+        "coherence": 5.29431676864624,
+        "random": -0.7808557351430258
+      },
+      {
+        "alpha": -0.02,
+        "log_ratio": -8.442245324452719,
+        "shift": -7.876818875471751,
+        "coherence": 4.00092077255249,
+        "random": -1.074284553527832
+      },
+      {
+        "alpha": -0.01,
+        "log_ratio": -5.335430343945821,
+        "shift": -4.770003894964853,
+        "coherence": 3.895808696746826,
+        "random": -0.7752999067306519
+      },
+      {
+        "alpha": -0.005,
+        "log_ratio": -3.018875261147817,
+        "shift": -2.45344881216685,
+        "coherence": 3.858544111251831,
+        "random": -0.5463723142941793
+      },
+      {
+        "alpha": 0.0,
+        "log_ratio": -0.5654264489809672,
+        "shift": 0.0,
+        "coherence": 3.824824571609497,
+        "random": null
+      },
+      {
+        "alpha": 0.005,
+        "log_ratio": 2.4051430225372314,
+        "shift": 2.9705694715181985,
+        "coherence": 3.8028502464294434,
+        "random": -0.6941813429196676
+      },
+      {
+        "alpha": 0.01,
+        "log_ratio": 5.79599408308665,
+        "shift": 6.361420532067617,
+        "coherence": 3.797480821609497,
+        "random": -0.7901922265688578
+      },
+      {
+        "alpha": 0.02,
+        "log_ratio": 10.858871618906656,
+        "shift": 11.424298067887623,
+        "coherence": 3.8218579292297363,
+        "random": 0.014166156450907389
+      },
+      {
+        "alpha": 0.05,
+        "log_ratio": 13.549612204233805,
+        "shift": 14.115038653214771,
+        "coherence": 4.191067695617676,
+        "random": 0.9498491883277893
+      }
+    ]
+  },
+  "prompts": [
+    "The doctor finished the operation and then",
+    "The engineer opened the toolbox because",
+    "After the meeting the chief executive said that",
+    "The nurse looked at the chart and then",
+    "The teacher graded the papers before",
+    "The babysitter arrived early because"
+  ]
+}

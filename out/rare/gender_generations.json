@@ -1,0 +1,38 @@
+[
+  {
+    "prompt": "The doctor finished the operation and then",
+    "clean": " went to the hospital. The doctor said that the patient was in a",
+    "push +she": " the patient was taken to the hospital.\n\nThe patient was taken",
+    "push +he": " went to the hospital. The doctor said that the patient was in a"
+  },
+  {
+    "prompt": "The engineer opened the toolbox because",
+    "clean": " he was in the middle of a project. He was working on a",
+    "push +she": " she was so excited.\n\n\"I'm going to make a",
+    "push +he": " he was in the middle of a task.\n\n\"I'm"
+  },
+  {
+    "prompt": "After the meeting the chief executive said that",
+    "clean": " he had been told that the\ngovernment had been given a mandate to",
+    "push +she": " the\ngovernment had been unable to find a suitable substitute for the\n",
+    "push +he": " he had been told that the\ngovernment had been given a report by"
+  },
+  {
+    "prompt": "The nurse looked at the chart and then",
+    "clean": " at the patient.\n\n\"I'm sorry, I'm not",
+    "push +she": " at the nurse.\n\n\"I'm sorry, I'm sorry",
+    "push +he": " at the patient.\n\n\"I'm sorry, Mr. Smith"
+  },
+  {
+    "prompt": "The teacher graded the papers before",
+    "clean": " the students were allowed to take them home. The students were given a",
+    "push +she": " the students were allowed to take them home. The students were given a",
+    "push +he": " the students were given the assignment. The teacher then gave the students a"
+  },
+  {
+    "prompt": "The babysitter arrived early because",
+    "clean": " she was tired and she wanted to get home.\n\nThe bab",
+    "push +she": " she was tired and wanted to get home.\n\nThe babys",
+    "push +he": " he was tired and wanted to sleep.\n\nThe babysitter"
+  }
+]
