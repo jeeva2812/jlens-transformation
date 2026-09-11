@@ -24,8 +24,8 @@ Three details that are easy to get wrong and are load-bearing:
    target_layer = 30 of 32 blocks, and J at the target is exactly the identity
    (verified: max|J[30] - I| == 0).
 
-2. Causality does the t' >= t sum for us. Seed *every* destination position with
-   the same v and take one backward pass; the gradient landing at anchor
+2. Causality does the t' >= t sum for us. Seed every non-padding destination
+   position with the same v and take one backward pass; the gradient landing at anchor
    position t is already sum_{t' >= t} J[t,t']^T v, because the causal mask has
    zeroed the terms with t' < t. We do not need a loop over t'.
 
@@ -78,6 +78,14 @@ def _find_blocks_and_norm(model):
     inner = getattr(model, "model", model)
     blocks = getattr(inner, "layers", None)
     norm = getattr(inner, "norm", None) or getattr(inner, "final_layernorm", None)
+    if blocks is None or norm is None:
+        # GPT-2 family: blocks live on .transformer.h, final norm on .transformer.ln_f.
+        # Same convention as above -- a forward hook on blocks[l] gives the residual
+        # LEAVING block l -- so nothing downstream changes.
+        gpt2 = getattr(model, "transformer", None)
+        if gpt2 is not None:
+            blocks = getattr(gpt2, "h", None)
+            norm = getattr(gpt2, "ln_f", None)
     if blocks is None or norm is None:
         raise RuntimeError(
             f"Could not locate decoder layers / final norm on {type(model).__name__}. "
@@ -198,13 +206,22 @@ def lens_vectors(model, batches, spec: LensSpec, seeds: torch.Tensor) -> torch.T
         # the one anchor whose t' >= t sum has a single term, so leaving it in
         # injects a spurious near-identity contribution.
         lengths = attention_mask.sum(dim=1, keepdim=True)              # (B, 1)
-        pos = idx.unsqueeze(0)                                          # (1, T)
-        valid = (pos >= spec.skip_first) & (pos < lengths - 1) & attention_mask.bool()
+        # Count positions within each sequence rather than using absolute batch
+        # columns. This supports both right and left padding.
+        seq_pos = attention_mask.long().cumsum(dim=1) - 1              # (B, T)
+        valid = (
+            (seq_pos >= spec.skip_first)
+            & (seq_pos < lengths - 1)
+            & attention_mask.bool()
+        )
 
         for k, v in enumerate(seeds):
             # Seed every final position with v. The causal mask means the
             # gradient arriving at anchor t is the sum over t' >= t only.
             grad_out = v.view(1, 1, -1).expand(B, T, d_model).to(h_final.dtype)
+            # Padded query positions still produce hidden states in many HF
+            # decoders. Seeding them would make batch padding alter the lens.
+            grad_out = grad_out * attention_mask.unsqueeze(-1).to(grad_out.dtype)
 
             (g,) = torch.autograd.grad(
                 outputs=h_final,

@@ -20,7 +20,7 @@ from jlens.lens import _MultiCapture, _find_blocks_and_norm
 from jlens.assay import NEUTRAL
 
 MODEL_ID = "HuggingFaceTB/SmolLM2-135M-Instruct"
-ALPHAS = [0.002, 0.005, 0.01, 0.02, 0.05, 0.1]
+ALPHAS = [0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75]
 NTOK_CAL = 13  # calibration length (gallery convention; base 25-token reps exceed 0.30 naturally)
 NTOK = 25  # final generation length for text_changed counts
 
@@ -123,18 +123,26 @@ def words(txt):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--outdir", type=Path, default=Path("out/labels"))
+    ap.add_argument("--model-id", default=MODEL_ID)
+    ap.add_argument("--jpath", default="out/ft/J_step0.pt")
+    ap.add_argument("--glob", default="smollm2-step0_J_L*_*.json")
+    ap.add_argument("--alphas", type=float, nargs="+", default=None,
+                    help="override the alpha ladder; the protocol takes the LARGEST\n                          non-degenerate value, so a ladder that never degenerates\n                          is a truncated sweep, not a calibrated one")
+    ap.add_argument("--target", type=int, default=28,
+                    help="target layer J maps to; J is the identity there so it is skipped")
     a = ap.parse_args()
 
-    tok = AutoTokenizer.from_pretrained(MODEL_ID)
-    model = AutoModelForCausalLM.from_pretrained(MODEL_ID, dtype=torch.float32).eval()
+    alphas = a.alphas or ALPHAS
+    tok = AutoTokenizer.from_pretrained(a.model_id)
+    model = AutoModelForCausalLM.from_pretrained(a.model_id, dtype=torch.float32).eval()
     for p in model.parameters():
         p.requires_grad_(False)
 
-    Jdict = torch.load("out/ft/J_step0.pt", map_location="cpu", weights_only=False)["J"]
+    Jdict = torch.load(a.jpath, map_location="cpu", weights_only=False)["J"]
     # SVD/EIG vectors per layer (recompute; cheap for 576)
     vecs = {}
     for L, J in Jdict.items():
-        if L == 28:
+        if L == a.target:
             continue
         Jf = J.float()
         U, S, Vh = torch.linalg.svd(Jf)
@@ -183,7 +191,7 @@ def main():
             lp = torch.log_softmax(lg, -1)
         return float(lp[B].mean() - lp[A].mean())
 
-    for shard in sorted(a.outdir.glob("smollm2-step0_J_L*_*.json")):
+    for shard in sorted(a.outdir.glob(a.glob)):
         D = json.loads(shard.read_text())
         dirty = False
         for r in D:
@@ -212,13 +220,13 @@ def main():
                 continue
             # hn from first prompt
             e0 = tok(prompts[0], return_tensors="pt")["input_ids"]
-            with _MultiCapture(model, [L], 28) as cap:
+            with _MultiCapture(model, [L], a.target) as cap:
                 with torch.no_grad():
                     model(input_ids=e0, attention_mask=torch.ones_like(e0), use_cache=False)
                 hn = float(cap.h[L][0].norm(dim=-1).mean())
             # calibrate (13-token generations, gallery convention)
             alpha = None
-            for cand in ALPHAS:
+            for cand in alphas:
                 reps = []
                 for p in prompts:
                     for sg in (+1, -1):

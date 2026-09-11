@@ -25,6 +25,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True, choices=["qwen", "llama"])
     ap.add_argument("--outdir", type=Path, default=Path("out/labels"))
+    ap.add_argument("--jpath", type=Path, default=None,
+                    help="override the saved-J path (e.g. the dense-layer recompute)")
+    ap.add_argument("--tag", default=None, help="override the model tag in output filenames")
     a = ap.parse_args()
     C = CFGS[a.model]
     a.outdir.mkdir(parents=True, exist_ok=True)
@@ -39,6 +42,10 @@ def main():
     norm_mod = norm_mod.eval().cpu()
     AX = build_extended(tok)
     print(f"{len(AX)} axes", flush=True)
+    if a.jpath:
+        C["jpath"] = str(a.jpath)
+    if a.tag:
+        C["tag"] = a.tag
     blob = torch.load(C["jpath"], map_location="cpu", weights_only=False)
     layers = sorted(blob["J"].keys())
     print("layers", layers, flush=True)

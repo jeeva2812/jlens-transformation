@@ -1,138 +1,147 @@
-# jlens-transformation
+# What is the Jacobian in J-Lens actually buying you?
 
-A red-team characterisation of **J-Lens** — a lens that reads a transformer's
-intermediate activations by computing a Jacobian from the weights, with no
-training.
+A J-Lens vector for token `t` is row `t` of `W_U J_l`, which is the same object as
 
-    J_ℓ = E_prompt[ ∂h_target / ∂h_ℓ ]        readout(d) = softmax(W_U · norm(J_ℓ d))
-
-Because nothing is trained, J can be computed at every checkpoint of a model's
-history for the price of a backward pass. That is the whole reason the
-training-dynamics results here exist.
-
----
-
-## The two results worth your time
-
-**1. Read with eigenvectors; steer with singular vectors.**
-
-| task | eigenvectors | singular vectors | n per family |
-|---|---|---|---|
-| clears a held-out axis probe | **39.6%** | 20.8% | 96 |
-| steers as its readout predicts | 44.4% | **75.0%** | 36 |
-
-`J` maps the residual stream *to itself*, so eigenvectors are the type-correct
-object for reading it. Weyl's inequality (`σ₁ ≥ |λ₁|`) says why singular vectors
-win steering: at fixed injection norm they must deliver the larger perturbation.
-The size of that advantage tracks the departure from normality at **r = +0.68**
-and vanishes at the target layer, where `Φ(T,T) = I` forces the two to coincide.
-
-**2. Depth is a lever, and fine-tuning spends against it.**
-
-Grafting one fine-tuned layer onto a base model at a time, so an edit's position
-sweeps at fixed size:
-
-| quantity | corr. with depth | earliest vs latest |
-|---|---|---|
-| effect per unit ‖ΔW‖ — real fine-tuned layer | −0.860 | **3.69×** |
-| effect per unit ‖ΔW‖ — random noise, matched norm | −0.915 | **4.03×** |
-| ‖ΔW‖ the adapter actually placed there | **+0.947** | — |
-
-Random noise shows the same gradient, so this is architecture — depth left to
-compound through. And the adapter puts *more* weight change late, where each unit
-buys least.
-
-## One retraction, recorded rather than deleted
-
-I claimed J amplifies the directions the model occupies *least* and built a
-framing on it. It was an artefact of one massive-activation direction carrying up
-to 99.8% of the variance; removing it reverses the sign at every layer
-(+0.229 → −0.856). A second finding died to the same artefact. **Both had passed
-a random-direction null; the null they needed was "remove the outlier dimensions
-first."** See `occupancy_control.py`.
-
-## Why J behaves this way
-
-Treating depth as time makes a residual network `dh/dt = F(t,h)`, whose linearised
-sensitivity is the state-transition matrix — so **`J_ℓ = Φ(T,ℓ)`**. Verified by the
-semigroup property (`ode_view.py`): composition holds at rel. err 0.256 against an
-identity control at 0.744.
-
-It follows that `J − I ≈ A·Δt` recovers the generator, that `σ` gives finite-time
-Lyapunov exponents, and that `Jᵀ` is the gradient propagator — so `|λ|>1` is an
-exploding-gradient channel. Training collapses those from **2102 → 32** at layer 8.
-
----
-
-## Reading the code
-
-Start here:
-
-| file | what it does |
-|---|---|
-| `jlens/lens.py` | the core — Jacobians, readouts, multi-layer capture |
-| `jlens/verify.py` | reproduces a published lens (cosine 0.9984) with a layer-offset sweep |
-| `jlens/axes.py` | **the axis probe** — scores a direction against held-out word pairs with a Bonferroni-corrected random null |
-
-**Interventions**
-
-| file | what it does |
-|---|---|
-| `assay_uv.py` | steering, u vs v head-to-head — the type-error correction |
-| `steer_demo.py`, `steer_gallery.py` | steering with generated text, per semantic axis |
-| `steer_compare.py`, `ablate_compare.py` | four direction families, injected and ablated |
-| `hybrid_steer.py` | eigenvector semantics delivered through the SVD |
-
-**Decompositions**
-
-| file | what it does |
-|---|---|
-| `eigen.py`, `eigen_vs_svd.py` | eigendecomposition and the head-to-head |
-| `eigen_training.py` | the eigenspectrum across 11 Olmo checkpoints |
-| `decomp_shootout.py` | six families scored on the axis probes |
-| `theory_check.py` | Weyl, Henrici, and the boundary condition at the target layer |
-
-**Change over time**
-
-| file | what it does |
-|---|---|
-| `birth.py`, `ft_birth.py` | which directions are born when |
-| `olmo_delta_svd.py` | ΔJ across training phases, both sides read |
-| `two_time.py`, `position_sweep.py` | the ΔJ integral and the depth-lever sweep |
-| `occupancy_control.py` | **the control that produced the retraction** |
-
-**Outputs** (`out/`, gitignored — regenerate or fetch from HF)
-
-| file | what it is |
-|---|---|
-| `BOOK.html` | the whole project as a narrative, from first principles |
-| `SUMMARY.html` | one-screen visual summary |
-| `INDEX.html` | 55 entries: every question, result and status |
-| `EXPLORER.html` | browse subspaces by model / checkpoint / layer |
-| `STEERING.html` | every steering axis attempted, including the failures |
-
-## Reproducing
-
-```bash
-uv venv && uv pip install -r requirements.txt
-python -m jlens.verify            # the external check: cosine 0.9984
-python -m jlens.assay_uv          # steering, u vs v
-python -m jlens.eigen_vs_svd      # eigen vs SVD on the axis probes
-python -m jlens.position_sweep    # the depth lever
+```text
+v_t = J_l.T @ W_U[t]
 ```
 
-Jacobians and analysis outputs: **`jeeva2812/olmo3-jlens-checkpoints`** on
-HuggingFace (Olmo 3 7B across 11 checkpoints, Qwen2.5-0.5B and Llama-3.2-1B EM
-organisms, ~9,900 direction readouts).
+So J-Lens steering is *already* steering with `J` transpose applied to a direction
+in logit space. The original paper never measures what that transport step is
+worth, because it never steers with `W_U[t]` on its own.
 
-## Honest scope
+This repo runs that missing control, on open models, at matched intervention norm.
 
-Of ~9,900 direction readouts here, **one** has a full validation chain (readout →
-held-out probe → 500-random null → causal steering → changed text). J-Lens is a
-**sensitivity map, not a feature dictionary** — for finding features an SAE is
-likely better. Its edge is being free and checkpoint-portable.
+## The experiment, in one block
 
-Steering numbers are the corrected path (inject `v`, read `u`). Anything citing
-46%, 42%, or a sharp depth profile came from an earlier version that injected
-`u`, which is a type error. The emergent-misalignment thread failed to replicate
-across architectures and should not be cited.
+Write the objective you want directly in logit space. Nothing else is used to
+build it -- no Italy token, no France token, no word list:
+
+```text
+w = normalize(W_U[" Rome"] - W_U[" Paris"])
+```
+
+Then compare, all injected at the same layer with the same L2 norm:
+
+| direction | what it tests |
+|---|---|
+| `w` | logit-lens baseline: no Jacobian at all |
+| `J.T @ w` | the J-Lens pullback |
+| `-(J.T @ w)` | sign control |
+| `V[:, :k] @ (S * U.T @ w)[:k]` | keep only the top `k` singular components of `J` |
+| a random vector | matched-norm null |
+
+Metric: mean change in `logit(" Rome") - logit(" Paris")`, over 12 neutral prompts
+that name no city.
+
+## Results
+
+Three models, three independently produced lenses. The Qwen lens is the published
+one from `camilablank/workspace-lenses`; the others are computed here.
+
+| direction | SmolLM2-135M (L20) | Qwen3.5-4B (L21) | OLMo-3-7B (L22) |
+|---|---|---|---|
+| `w` (no Jacobian) | +1.89 | +3.72 | +4.07 |
+| **`J.T @ w` (pullback)** | **+3.30** | **+4.87** | **+6.54** |
+| `-(J.T @ w)` | −2.79 | −4.36 | −6.53 |
+| null: 30 random draws, mean ± sd | −0.03 ± 0.17 | +0.04 ± 0.14 | +0.00 ± 0.14 |
+| pullback, z against that null | **+20.0** | **+35.7** | **+46.0** |
+
+**1. The transport is worth about 1.3--1.7x, not an order of magnitude.** Most of
+the causal effect a J-Lens vector has is already present in the raw unembedding
+row. This is the number the paper's framing does not let you read off.
+
+**2. No single singular direction of `J` is the concept.** Truncating to the top
+component recovers 15% / 2% / −2% of the full pullback; the top 64 recover
+72% / 27% / 18%. The objective is spread across hundreds of individually
+mediocre components, so `J`'s spectrum is not a concept dictionary.
+
+**3. It is a token-slot bias, not a belief edit.** On eight real factual prompts,
+the pullback raises `Rome − Paris` by a near-constant amount regardless of what
+the model believed: `corr(clean logit gap, induced shift)` = +0.01 / −0.43 / +0.09.
+It moves "The capital of France is" and "The Colosseum is located in" by the same
+amount. The only prompts it leaves alone are the ones where neither city name is
+a grammatical answer ("A person from Paris is called ___").
+
+**4. Specificity is relative, not absolute — and one model leaks.** Held-out
+Italy-vs-France tokens (`Italy, Italian, Roman, Vatican` vs `France, French`) were
+never used to build `w`, and they move +1.27 / +2.47 / +2.23 (z = +13 / +22 / +26).
+Two unrelated geographic contrasts are the controls, scored against the same
+30-draw null:
+
+| control | SmolLM2-135M | Qwen3.5-4B | OLMo-3-7B |
+|---|---|---|---|
+| Japan-vs-China | −0.01 (z −0.5) | −0.26 (**z −2.2**) | −0.11 (z −1.0) |
+| Spain-vs-Germany | +0.11 (z +0.8) | +0.27 (**z +2.0**) | +0.19 (z +1.9) |
+
+On SmolLM2 and OLMo the controls sit inside the null. **On Qwen3.5-4B they do
+not** — both exceed all 30 random draws. The leak is small (about 5% of the
+on-target contrast and 12% of the Italy-vs-France effect) but it is real, and it
+means the intervention nudges unrelated geography rather than moving one concept
+cleanly. A single random draw, which is what this script used before, would have
+hidden it.
+
+## Reproduce
+
+Re-check every number above against the saved results (no model inference, ~1s):
+
+```bash
+python verify.py
+```
+
+Recompute one model end to end:
+
+```bash
+PYTHONPATH=. .venv/bin/python -m jlens.contrastive_logit_steering \
+  --model Qwen/Qwen3.5-4B --layer 21 \
+  --lens <path to workspace-lenses qwen3.5-4b/j-lens/lens.pt> \
+  --scale-json out/rare/qwen35_4b_pullback_robustness.json \
+  --out out/rare/qwen35_4b_rome_paris.json
+```
+
+Rebuild the figures (aggregates saved JSON, runs no model):
+
+```bash
+MPLCONFIGDIR=/tmp/mpl PYTHONPATH=. .venv/bin/python -m jlens.application_core_figs
+```
+
+Check the lens implementation itself:
+
+```bash
+PYTHONPATH=. .venv/bin/python tests/test_lens_math.py        # VJP shortcut == brute force
+PYTHONPATH=. .venv/bin/python tests/test_identity_at_target.py
+PYTHONPATH=. .venv/bin/python tests/test_multilayer.py
+PYTHONPATH=. .venv/bin/python tests/test_lens_padding.py
+```
+
+## Layout
+
+| path | what |
+|---|---|
+| `jlens/lens.py` | computing `J`; one backward pass gives every layer |
+| `jlens/contrastive_logit_steering.py` | the experiment above |
+| `jlens/pullback_steer.py` | word-set version of the same objective, held-out scoring |
+| `jlens/pullback_robustness.py` | dose sweep, 30 random draws per cell |
+| `jlens/pullback_rank.py` | spectral truncation sweep |
+| `jlens/pullback_corpus.py` | does the corpus `J` is estimated on matter? |
+| `jlens/subspace_meaning.py` | topic concentration in the leading subspace |
+| `tests/` | correctness of the Jacobian itself |
+| `docs/JLENS_HANDOFF.md` | the four conventions that must be right, none of which fail loudly |
+| `docs/POSITION_IS_THE_VARIABLE.md` | position and dose protocol; these dominate everything |
+| `docs/MASTER_REPORT_terse.md` | full record of every arm tried, including the negatives |
+| `out/rare/*.json` | saved results `verify.py` and the figure scripts read |
+| `_attic/` | earlier arms, kept out of the way; see `_attic/README.md` |
+
+## Known limits
+
+- One contrast (`Rome − Paris`), one layer per model. No layer sweep in this
+  experiment, and no second contrast at the same rigour.
+- The null is 30 matched-norm random draws at one dose. `pullback_robustness.py`
+  is the version that also sweeps dose.
+- The direction is added at *every* token position. Position dominates steering
+  results (see `docs/POSITION_IS_THE_VARIABLE.md`); this choice is uniform across
+  arms so the comparison is fair, but the absolute sizes are not transferable.
+- Effect size tracks headroom. Any target-vs-control claim has to regress on the
+  base log-probability first, which the category controls above do not yet do.
+- Category membership (`Italy` vs `France` word lists) is a hand-written proxy
+  for a concept, chosen before the results were seen but not preregistered.

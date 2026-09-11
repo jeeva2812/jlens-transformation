@@ -1,0 +1,1641 @@
+{
+  "config": {
+    "model": "allenai/Olmo-3-1025-7B",
+    "lens": "out/Jall_main_fp16.pt",
+    "layer": 22,
+    "scale_json": "out/rare/olmo3_7b_pullback_robustness.json",
+    "dose": 0.15,
+    "device": "mps",
+    "dtype": "float16",
+    "out": "out/rare/olmo3_7b_rome_paris_facts.json"
+  },
+  "model": "allenai/Olmo-3-1025-7B",
+  "layer": 22,
+  "dose": 0.15,
+  "rows": [
+    {
+      "prompt": "The Eiffel Tower is located in",
+      "paris_answer": "Paris",
+      "rome_answer": "Rome",
+      "methods": {
+        "clean": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 6.773212953703478e-05,
+          "paris_side_probability": 0.09481673687696457,
+          "rome_minus_paris_answer_logit": -7.244140625,
+          "top10": [
+            {
+              "token": " which",
+              "probability": 0.26800575852394104
+            },
+            {
+              "token": "\n",
+              "probability": 0.18419748544692993
+            },
+            {
+              "token": " \n",
+              "probability": 0.14345315098762512
+            },
+            {
+              "token": "  \n",
+              "probability": 0.12079966068267822
+            },
+            {
+              "token": " Paris",
+              "probability": 0.09481673687696457
+            },
+            {
+              "token": " ___",
+              "probability": 0.056396931409835815
+            },
+            {
+              "token": " __",
+              "probability": 0.032960351556539536
+            },
+            {
+              "token": " the",
+              "probability": 0.022345690056681633
+            },
+            {
+              "token": " France",
+              "probability": 0.019490256905555725
+            },
+            {
+              "token": " a",
+              "probability": 0.01581455022096634
+            }
+          ]
+        },
+        "direct_w": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.0007166735013015568,
+          "paris_side_probability": 0.04041057825088501,
+          "rome_minus_paris_answer_logit": -4.0322265625,
+          "top10": [
+            {
+              "token": " which",
+              "probability": 0.28105342388153076
+            },
+            {
+              "token": "\n",
+              "probability": 0.18217195570468903
+            },
+            {
+              "token": " \n",
+              "probability": 0.15161694586277008
+            },
+            {
+              "token": "  \n",
+              "probability": 0.12544959783554077
+            },
+            {
+              "token": " ___",
+              "probability": 0.06767498701810837
+            },
+            {
+              "token": " __",
+              "probability": 0.04048958793282509
+            },
+            {
+              "token": " Paris",
+              "probability": 0.04041057825088501
+            },
+            {
+              "token": " France",
+              "probability": 0.025989312678575516
+            },
+            {
+              "token": " the",
+              "probability": 0.020760996267199516
+            },
+            {
+              "token": " a",
+              "probability": 0.016471484676003456
+            }
+          ]
+        },
+        "pullback": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.008910872042179108,
+          "paris_side_probability": 0.013521273620426655,
+          "rome_minus_paris_answer_logit": -0.4169921875,
+          "top10": [
+            {
+              "token": " which",
+              "probability": 0.25990572571754456
+            },
+            {
+              "token": "\n",
+              "probability": 0.2048007845878601
+            },
+            {
+              "token": " \n",
+              "probability": 0.17313453555107117
+            },
+            {
+              "token": "  \n",
+              "probability": 0.12181536108255386
+            },
+            {
+              "token": " ___",
+              "probability": 0.07133236527442932
+            },
+            {
+              "token": " __",
+              "probability": 0.04696400463581085
+            },
+            {
+              "token": " France",
+              "probability": 0.020637625828385353
+            },
+            {
+              "token": " the",
+              "probability": 0.01840933784842491
+            },
+            {
+              "token": " a",
+              "probability": 0.014591456390917301
+            },
+            {
+              "token": " Paris",
+              "probability": 0.013521273620426655
+            }
+          ]
+        },
+        "reverse_pullback": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 4.509316511303041e-07,
+          "paris_side_probability": 0.39212727546691895,
+          "rome_minus_paris_answer_logit": -13.67578125,
+          "top10": [
+            {
+              "token": " Paris",
+              "probability": 0.39212727546691895
+            },
+            {
+              "token": " which",
+              "probability": 0.19640527665615082
+            },
+            {
+              "token": "\n",
+              "probability": 0.11819878220558167
+            },
+            {
+              "token": "  \n",
+              "probability": 0.08647606521844864
+            },
+            {
+              "token": " \n",
+              "probability": 0.08316322416067123
+            },
+            {
+              "token": " ___",
+              "probability": 0.03288678452372551
+            },
+            {
+              "token": " the",
+              "probability": 0.020024912431836128
+            },
+            {
+              "token": " __",
+              "probability": 0.016895633190870285
+            },
+            {
+              "token": " a",
+              "probability": 0.013068689033389091
+            },
+            {
+              "token": " France",
+              "probability": 0.011829659342765808
+            }
+          ]
+        }
+      }
+    },
+    {
+      "prompt": "The Louvre Museum is located in",
+      "paris_answer": "Paris",
+      "rome_answer": "Rome",
+      "methods": {
+        "clean": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.00016322117880918086,
+          "paris_side_probability": 0.19410622119903564,
+          "rome_minus_paris_answer_logit": -7.0810546875,
+          "top10": [
+            {
+              "token": " which",
+              "probability": 0.20662499964237213
+            },
+            {
+              "token": " Paris",
+              "probability": 0.19410622119903564
+            },
+            {
+              "token": "\n",
+              "probability": 0.14368513226509094
+            },
+            {
+              "token": " the",
+              "probability": 0.1224212646484375
+            },
+            {
+              "token": " \n",
+              "probability": 0.10677772760391235
+            },
+            {
+              "token": "  \n",
+              "probability": 0.06351131200790405
+            },
+            {
+              "token": " a",
+              "probability": 0.03307819738984108
+            },
+            {
+              "token": " ___",
+              "probability": 0.02896423451602459
+            },
+            {
+              "token": " __",
+              "probability": 0.023778842762112617
+            },
+            {
+              "token": " France",
+              "probability": 0.014678360894322395
+            }
+          ]
+        },
+        "direct_w": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.0024202740751206875,
+          "paris_side_probability": 0.08366740494966507,
+          "rome_minus_paris_answer_logit": -3.54296875,
+          "top10": [
+            {
+              "token": " which",
+              "probability": 0.23465104401111603
+            },
+            {
+              "token": "\n",
+              "probability": 0.16509763896465302
+            },
+            {
+              "token": " \n",
+              "probability": 0.12462222576141357
+            },
+            {
+              "token": " the",
+              "probability": 0.12462222576141357
+            },
+            {
+              "token": " Paris",
+              "probability": 0.08366740494966507
+            },
+            {
+              "token": "  \n",
+              "probability": 0.0707307755947113
+            },
+            {
+              "token": " a",
+              "probability": 0.03815638646483421
+            },
+            {
+              "token": " ___",
+              "probability": 0.034606341272592545
+            },
+            {
+              "token": " __",
+              "probability": 0.027806978672742844
+            },
+            {
+              "token": " France",
+              "probability": 0.02251877635717392
+            }
+          ]
+        },
+        "pullback": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.021655749529600143,
+          "paris_side_probability": 0.0355650968849659,
+          "rome_minus_paris_answer_logit": -0.49609375,
+          "top10": [
+            {
+              "token": " which",
+              "probability": 0.22390201687812805
+            },
+            {
+              "token": "\n",
+              "probability": 0.18562127649784088
+            },
+            {
+              "token": " \n",
+              "probability": 0.13902391493320465
+            },
+            {
+              "token": " the",
+              "probability": 0.12559764087200165
+            },
+            {
+              "token": "  \n",
+              "probability": 0.07354719191789627
+            },
+            {
+              "token": " ___",
+              "probability": 0.03906061872839928
+            },
+            {
+              "token": " Paris",
+              "probability": 0.0355650968849659
+            },
+            {
+              "token": " a",
+              "probability": 0.03501371294260025
+            },
+            {
+              "token": " __",
+              "probability": 0.03270017355680466
+            },
+            {
+              "token": " Rome",
+              "probability": 0.021655749529600143
+            }
+          ]
+        },
+        "reverse_pullback": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 9.709779078548308e-07,
+          "paris_side_probability": 0.5690925717353821,
+          "rome_minus_paris_answer_logit": -13.28125,
+          "top10": [
+            {
+              "token": " Paris",
+              "probability": 0.5690925717353821
+            },
+            {
+              "token": " which",
+              "probability": 0.11427117884159088
+            },
+            {
+              "token": " the",
+              "probability": 0.07235200703144073
+            },
+            {
+              "token": "\n",
+              "probability": 0.07012595981359482
+            },
+            {
+              "token": " \n",
+              "probability": 0.05050983652472496
+            },
+            {
+              "token": "  \n",
+              "probability": 0.03404342383146286
+            },
+            {
+              "token": " a",
+              "probability": 0.020091425627470016
+            },
+            {
+              "token": " ___",
+              "probability": 0.013383775018155575
+            },
+            {
+              "token": " __",
+              "probability": 0.010880931280553341
+            },
+            {
+              "token": " what",
+              "probability": 0.00891551561653614
+            }
+          ]
+        }
+      }
+    },
+    {
+      "prompt": "The capital of France is",
+      "paris_answer": "Paris",
+      "rome_answer": "Rome",
+      "methods": {
+        "clean": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.0004953353200107813,
+          "paris_side_probability": 0.06448136270046234,
+          "rome_minus_paris_answer_logit": -4.868896484375,
+          "top10": [
+            {
+              "token": " known",
+              "probability": 0.2768310606479645
+            },
+            {
+              "token": "  \n",
+              "probability": 0.17803874611854553
+            },
+            {
+              "token": "\n",
+              "probability": 0.08779196441173553
+            },
+            {
+              "token": " \n",
+              "probability": 0.08676914870738983
+            },
+            {
+              "token": " located",
+              "probability": 0.07364002615213394
+            },
+            {
+              "token": " Paris",
+              "probability": 0.06448136270046234
+            },
+            {
+              "token": " __",
+              "probability": 0.03812939301133156
+            },
+            {
+              "token": " ___",
+              "probability": 0.021346919238567352
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.013410844840109348
+            },
+            {
+              "token": " \n\n",
+              "probability": 0.013125794008374214
+            }
+          ]
+        },
+        "direct_w": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.006700471509248018,
+          "paris_side_probability": 0.018356623128056526,
+          "rome_minus_paris_answer_logit": -1.0078125,
+          "top10": [
+            {
+              "token": " known",
+              "probability": 0.3141385614871979
+            },
+            {
+              "token": "  \n",
+              "probability": 0.17484444379806519
+            },
+            {
+              "token": "\n",
+              "probability": 0.08860684931278229
+            },
+            {
+              "token": " \n",
+              "probability": 0.08291391283273697
+            },
+            {
+              "token": " located",
+              "probability": 0.07758674770593643
+            },
+            {
+              "token": " __",
+              "probability": 0.041773244738578796
+            },
+            {
+              "token": " ___",
+              "probability": 0.021045971661806107
+            },
+            {
+              "token": " Paris",
+              "probability": 0.018356623128056526
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.014157220721244812
+            },
+            {
+              "token": " \n\n",
+              "probability": 0.013910537585616112
+            }
+          ]
+        },
+        "pullback": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.046319685876369476,
+          "paris_side_probability": 0.004815766587853432,
+          "rome_minus_paris_answer_logit": 2.263671875,
+          "top10": [
+            {
+              "token": " known",
+              "probability": 0.29160812497138977
+            },
+            {
+              "token": "  \n",
+              "probability": 0.16615331172943115
+            },
+            {
+              "token": "\n",
+              "probability": 0.10196500271558762
+            },
+            {
+              "token": " \n",
+              "probability": 0.09691636264324188
+            },
+            {
+              "token": " located",
+              "probability": 0.06355930119752884
+            },
+            {
+              "token": " __",
+              "probability": 0.05167334899306297
+            },
+            {
+              "token": " Rome",
+              "probability": 0.046319685876369476
+            },
+            {
+              "token": " ___",
+              "probability": 0.022094588726758957
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.012812366709113121
+            },
+            {
+              "token": " \n\n",
+              "probability": 0.012012620456516743
+            }
+          ]
+        },
+        "reverse_pullback": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 1.9273970792710315e-06,
+          "paris_side_probability": 0.4043663740158081,
+          "rome_minus_paris_answer_logit": -12.25390625,
+          "top10": [
+            {
+              "token": " Paris",
+              "probability": 0.4043663740158081
+            },
+            {
+              "token": " known",
+              "probability": 0.15711984038352966
+            },
+            {
+              "token": "  \n",
+              "probability": 0.12332478165626526
+            },
+            {
+              "token": " located",
+              "probability": 0.05515425279736519
+            },
+            {
+              "token": " \n",
+              "probability": 0.04943995177745819
+            },
+            {
+              "token": "\n",
+              "probability": 0.047545935958623886
+            },
+            {
+              "token": " __",
+              "probability": 0.019023606553673744
+            },
+            {
+              "token": " ___",
+              "probability": 0.013049209490418434
+            },
+            {
+              "token": " \n\n",
+              "probability": 0.009199215099215508
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.008743731305003166
+            }
+          ]
+        }
+      }
+    },
+    {
+      "prompt": "The most widely spoken language in Paris is",
+      "paris_answer": "French",
+      "rome_answer": "Italian",
+      "methods": {
+        "clean": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 0.00039366306737065315,
+          "paris_side_probability": 0.3394279181957245,
+          "rome_minus_paris_answer_logit": -6.759521484375,
+          "top10": [
+            {
+              "token": " French",
+              "probability": 0.3394279181957245
+            },
+            {
+              "token": " \n",
+              "probability": 0.15970930457115173
+            },
+            {
+              "token": "  \n",
+              "probability": 0.14428533613681793
+            },
+            {
+              "token": "\n",
+              "probability": 0.11730315536260605
+            },
+            {
+              "token": " __",
+              "probability": 0.03720057010650635
+            },
+            {
+              "token": " ___",
+              "probability": 0.023646121844649315
+            },
+            {
+              "token": " \n\n",
+              "probability": 0.017435556277632713
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.016507653519511223
+            },
+            {
+              "token": " likely",
+              "probability": 0.016379188746213913
+            },
+            {
+              "token": " ____",
+              "probability": 0.00885318499058485
+            }
+          ]
+        },
+        "direct_w": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 0.0005361553048714995,
+          "paris_side_probability": 0.38635119795799255,
+          "rome_minus_paris_answer_logit": -6.580078125,
+          "top10": [
+            {
+              "token": " French",
+              "probability": 0.38635119795799255
+            },
+            {
+              "token": " \n",
+              "probability": 0.1460706740617752
+            },
+            {
+              "token": "  \n",
+              "probability": 0.13668572902679443
+            },
+            {
+              "token": "\n",
+              "probability": 0.11243460327386856
+            },
+            {
+              "token": " __",
+              "probability": 0.0342906154692173
+            },
+            {
+              "token": " ___",
+              "probability": 0.021125836297869682
+            },
+            {
+              "token": " \n\n",
+              "probability": 0.01613459177315235
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.015760835260152817
+            },
+            {
+              "token": " likely",
+              "probability": 0.01314297504723072
+            },
+            {
+              "token": " **",
+              "probability": 0.008018462918698788
+            }
+          ]
+        },
+        "pullback": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 0.0013549139257520437,
+          "paris_side_probability": 0.40700116753578186,
+          "rome_minus_paris_answer_logit": -5.705078125,
+          "top10": [
+            {
+              "token": " French",
+              "probability": 0.40700116753578186
+            },
+            {
+              "token": " \n",
+              "probability": 0.14972735941410065
+            },
+            {
+              "token": "\n",
+              "probability": 0.11844408512115479
+            },
+            {
+              "token": "  \n",
+              "probability": 0.11844408512115479
+            },
+            {
+              "token": " __",
+              "probability": 0.03626479208469391
+            },
+            {
+              "token": " ___",
+              "probability": 0.020502252504229546
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.015058476477861404
+            },
+            {
+              "token": " \n\n",
+              "probability": 0.013981322757899761
+            },
+            {
+              "token": " likely",
+              "probability": 0.011190509423613548
+            },
+            {
+              "token": " ____",
+              "probability": 0.007873506285250187
+            }
+          ]
+        },
+        "reverse_pullback": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 0.0001424754154868424,
+          "paris_side_probability": 0.27596163749694824,
+          "rome_minus_paris_answer_logit": -7.56884765625,
+          "top10": [
+            {
+              "token": " French",
+              "probability": 0.27596163749694824
+            },
+            {
+              "token": "  \n",
+              "probability": 0.1686919629573822
+            },
+            {
+              "token": " \n",
+              "probability": 0.1560145616531372
+            },
+            {
+              "token": "\n",
+              "probability": 0.11019958555698395
+            },
+            {
+              "token": " __",
+              "probability": 0.0386836901307106
+            },
+            {
+              "token": " ___",
+              "probability": 0.02586975134909153
+            },
+            {
+              "token": " likely",
+              "probability": 0.021530717611312866
+            },
+            {
+              "token": " \n\n",
+              "probability": 0.019300010055303574
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.017436105757951736
+            },
+            {
+              "token": " Paris",
+              "probability": 0.010742072947323322
+            }
+          ]
+        }
+      }
+    },
+    {
+      "prompt": "A person from Paris is called",
+      "paris_answer": "French",
+      "rome_answer": "Italian",
+      "methods": {
+        "clean": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 1.0092682714457624e-05,
+          "paris_side_probability": 0.010706514120101929,
+          "rome_minus_paris_answer_logit": -6.966796875,
+          "top10": [
+            {
+              "token": " a",
+              "probability": 0.6395060420036316
+            },
+            {
+              "token": " Paris",
+              "probability": 0.11465711146593094
+            },
+            {
+              "token": " \"",
+              "probability": 0.03402522951364517
+            },
+            {
+              "token": "  \n",
+              "probability": 0.024316735565662384
+            },
+            {
+              "token": " \n",
+              "probability": 0.02079920656979084
+            },
+            {
+              "token": " __",
+              "probability": 0.017446404322981834
+            },
+            {
+              "token": " ___",
+              "probability": 0.014981106854975224
+            },
+            {
+              "token": "\n",
+              "probability": 0.014463577419519424
+            },
+            {
+              "token": " French",
+              "probability": 0.010706514120101929
+            },
+            {
+              "token": " what",
+              "probability": 0.006673844531178474
+            }
+          ]
+        },
+        "direct_w": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 2.034753379120957e-05,
+          "paris_side_probability": 0.013586962595582008,
+          "rome_minus_paris_answer_logit": -6.50390625,
+          "top10": [
+            {
+              "token": " a",
+              "probability": 0.6794068217277527
+            },
+            {
+              "token": " Paris",
+              "probability": 0.03985638543963432
+            },
+            {
+              "token": " \"",
+              "probability": 0.038329508155584335
+            },
+            {
+              "token": "  \n",
+              "probability": 0.027179691940546036
+            },
+            {
+              "token": " \n",
+              "probability": 0.022977177053689957
+            },
+            {
+              "token": " __",
+              "probability": 0.01831900142133236
+            },
+            {
+              "token": " ___",
+              "probability": 0.016293257474899292
+            },
+            {
+              "token": "\n",
+              "probability": 0.016040652990341187
+            },
+            {
+              "token": " French",
+              "probability": 0.013586962595582008
+            },
+            {
+              "token": " what",
+              "probability": 0.007832873612642288
+            }
+          ]
+        },
+        "pullback": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 3.6729907151311636e-05,
+          "paris_side_probability": 0.01489043328911066,
+          "rome_minus_paris_answer_logit": -6.0048828125,
+          "top10": [
+            {
+              "token": " a",
+              "probability": 0.6926761865615845
+            },
+            {
+              "token": " \"",
+              "probability": 0.04241889342665672
+            },
+            {
+              "token": "  \n",
+              "probability": 0.025034382939338684
+            },
+            {
+              "token": " \n",
+              "probability": 0.024075327441096306
+            },
+            {
+              "token": " Paris",
+              "probability": 0.019881336018443108
+            },
+            {
+              "token": " __",
+              "probability": 0.01964971236884594
+            },
+            {
+              "token": "\n",
+              "probability": 0.0179612897336483
+            },
+            {
+              "token": " ___",
+              "probability": 0.016037626191973686
+            },
+            {
+              "token": " French",
+              "probability": 0.01489043328911066
+            },
+            {
+              "token": " what",
+              "probability": 0.007516684476286173
+            }
+          ]
+        },
+        "reverse_pullback": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 2.1542537069763057e-06,
+          "paris_side_probability": 0.005645071156322956,
+          "rome_minus_paris_answer_logit": -7.87109375,
+          "top10": [
+            {
+              "token": " Paris",
+              "probability": 0.4449537396430969
+            },
+            {
+              "token": " a",
+              "probability": 0.40831249952316284
+            },
+            {
+              "token": " \"",
+              "probability": 0.019626418128609657
+            },
+            {
+              "token": "  \n",
+              "probability": 0.01493099145591259
+            },
+            {
+              "token": " \n",
+              "probability": 0.011537776328623295
+            },
+            {
+              "token": " __",
+              "probability": 0.010670699179172516
+            },
+            {
+              "token": " ___",
+              "probability": 0.009270863607525826
+            },
+            {
+              "token": "\n",
+              "probability": 0.00796082615852356
+            },
+            {
+              "token": " paris",
+              "probability": 0.0064721060916781425
+            },
+            {
+              "token": " French",
+              "probability": 0.005645071156322956
+            }
+          ]
+        }
+      }
+    },
+    {
+      "prompt": "The Colosseum is located in",
+      "paris_answer": "Paris",
+      "rome_answer": "Rome",
+      "methods": {
+        "clean": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.11382029950618744,
+          "paris_side_probability": 0.00026092975167557597,
+          "rome_minus_paris_answer_logit": 6.078125,
+          "top10": [
+            {
+              "token": " which",
+              "probability": 0.3118222653865814
+            },
+            {
+              "token": "\n",
+              "probability": 0.14165164530277252
+            },
+            {
+              "token": " \n",
+              "probability": 0.11697550863027573
+            },
+            {
+              "token": " Rome",
+              "probability": 0.11382029950618744
+            },
+            {
+              "token": "  \n",
+              "probability": 0.07012265175580978
+            },
+            {
+              "token": " the",
+              "probability": 0.06743629276752472
+            },
+            {
+              "token": " ___",
+              "probability": 0.06335053592920303
+            },
+            {
+              "token": " __",
+              "probability": 0.038574427366256714
+            },
+            {
+              "token": " a",
+              "probability": 0.014414210803806782
+            },
+            {
+              "token": " what",
+              "probability": 0.012043524533510208
+            }
+          ]
+        },
+        "direct_w": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.2111848145723343,
+          "paris_side_probability": 2.8707792807836086e-05,
+          "rome_minus_paris_answer_logit": 8.9033203125,
+          "top10": [
+            {
+              "token": " which",
+              "probability": 0.27977442741394043
+            },
+            {
+              "token": " Rome",
+              "probability": 0.2111848145723343
+            },
+            {
+              "token": "\n",
+              "probability": 0.11939307302236557
+            },
+            {
+              "token": " \n",
+              "probability": 0.10332608222961426
+            },
+            {
+              "token": "  \n",
+              "probability": 0.06440772861242294
+            },
+            {
+              "token": " ___",
+              "probability": 0.061698827892541885
+            },
+            {
+              "token": " the",
+              "probability": 0.05381467193365097
+            },
+            {
+              "token": " __",
+              "probability": 0.03771573677659035
+            },
+            {
+              "token": " a",
+              "probability": 0.012583937495946884
+            },
+            {
+              "token": " what",
+              "probability": 0.01205467339605093
+            }
+          ]
+        },
+        "pullback": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.37703409790992737,
+          "paris_side_probability": 2.832792006302043e-06,
+          "rome_minus_paris_answer_logit": 11.798828125,
+          "top10": [
+            {
+              "token": " Rome",
+              "probability": 0.37703409790992737
+            },
+            {
+              "token": " which",
+              "probability": 0.19257016479969025
+            },
+            {
+              "token": "\n",
+              "probability": 0.10469858348369598
+            },
+            {
+              "token": " \n",
+              "probability": 0.095329150557518
+            },
+            {
+              "token": "  \n",
+              "probability": 0.05410515144467354
+            },
+            {
+              "token": " ___",
+              "probability": 0.052032411098480225
+            },
+            {
+              "token": " the",
+              "probability": 0.04116102680563927
+            },
+            {
+              "token": " __",
+              "probability": 0.03320326283574104
+            },
+            {
+              "token": " a",
+              "probability": 0.008297293446958065
+            },
+            {
+              "token": " what",
+              "probability": 0.007917333394289017
+            }
+          ]
+        },
+        "reverse_pullback": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.01842050440609455,
+          "paris_side_probability": 0.031212175264954567,
+          "rome_minus_paris_answer_logit": -0.52734375,
+          "top10": [
+            {
+              "token": " which",
+              "probability": 0.35581180453300476
+            },
+            {
+              "token": "\n",
+              "probability": 0.1448885053396225
+            },
+            {
+              "token": " \n",
+              "probability": 0.11108987033367157
+            },
+            {
+              "token": " the",
+              "probability": 0.08095821738243103
+            },
+            {
+              "token": "  \n",
+              "probability": 0.07257048040628433
+            },
+            {
+              "token": " ___",
+              "probability": 0.05651794373989105
+            },
+            {
+              "token": " __",
+              "probability": 0.034414034336805344
+            },
+            {
+              "token": " Paris",
+              "probability": 0.031212175264954567
+            },
+            {
+              "token": " a",
+              "probability": 0.01907961815595627
+            },
+            {
+              "token": " Rome",
+              "probability": 0.01842050440609455
+            }
+          ]
+        }
+      }
+    },
+    {
+      "prompt": "The capital of Italy is",
+      "paris_answer": "Paris",
+      "rome_answer": "Rome",
+      "methods": {
+        "clean": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.11649765074253082,
+          "paris_side_probability": 0.0001798925659386441,
+          "rome_minus_paris_answer_logit": 6.4732666015625,
+          "top10": [
+            {
+              "token": "  \n",
+              "probability": 0.1668751835823059
+            },
+            {
+              "token": " Rome",
+              "probability": 0.11649765074253082
+            },
+            {
+              "token": " \n",
+              "probability": 0.11559106409549713
+            },
+            {
+              "token": " known",
+              "probability": 0.1151404157280922
+            },
+            {
+              "token": "\n",
+              "probability": 0.11247318983078003
+            },
+            {
+              "token": " located",
+              "probability": 0.08038096129894257
+            },
+            {
+              "token": " __",
+              "probability": 0.05767052248120308
+            },
+            {
+              "token": " ___",
+              "probability": 0.02461075596511364
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.01671764813363552
+            },
+            {
+              "token": " characterized",
+              "probability": 0.014355327934026718
+            }
+          ]
+        },
+        "direct_w": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.3220956027507782,
+          "paris_side_probability": 1.184216216643108e-05,
+          "rome_minus_paris_answer_logit": 10.2109375,
+          "top10": [
+            {
+              "token": " Rome",
+              "probability": 0.3220956027507782
+            },
+            {
+              "token": "  \n",
+              "probability": 0.12466494739055634
+            },
+            {
+              "token": " known",
+              "probability": 0.0926431193947792
+            },
+            {
+              "token": " \n",
+              "probability": 0.0863528773188591
+            },
+            {
+              "token": "\n",
+              "probability": 0.08468266576528549
+            },
+            {
+              "token": " located",
+              "probability": 0.06392183154821396
+            },
+            {
+              "token": " __",
+              "probability": 0.049010567367076874
+            },
+            {
+              "token": " ___",
+              "probability": 0.0190434530377388
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.012885444797575474
+            },
+            {
+              "token": " characterized",
+              "probability": 0.010353746823966503
+            }
+          ]
+        },
+        "pullback": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.48595091700553894,
+          "paris_side_probability": 1.6107104556795093e-06,
+          "rome_minus_paris_answer_logit": 12.6171875,
+          "top10": [
+            {
+              "token": " Rome",
+              "probability": 0.48595091700553894
+            },
+            {
+              "token": "  \n",
+              "probability": 0.09130746871232986
+            },
+            {
+              "token": " \n",
+              "probability": 0.07481466233730316
+            },
+            {
+              "token": "\n",
+              "probability": 0.07251285761594772
+            },
+            {
+              "token": " known",
+              "probability": 0.06202353537082672
+            },
+            {
+              "token": " __",
+              "probability": 0.04774121567606926
+            },
+            {
+              "token": " located",
+              "probability": 0.03911775350570679
+            },
+            {
+              "token": " ___",
+              "probability": 0.01531873270869255
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.009327645413577557
+            },
+            {
+              "token": " characterized",
+              "probability": 0.006877774838358164
+            }
+          ]
+        },
+        "reverse_pullback": {
+          "rome_side_answer": " Rome",
+          "paris_side_answer": " Paris",
+          "rome_side_probability": 0.009741997346282005,
+          "paris_side_probability": 0.026481494307518005,
+          "rome_minus_paris_answer_logit": -1.0,
+          "top10": [
+            {
+              "token": "  \n",
+              "probability": 0.19263961911201477
+            },
+            {
+              "token": " known",
+              "probability": 0.13034647703170776
+            },
+            {
+              "token": " \n",
+              "probability": 0.11019235104322433
+            },
+            {
+              "token": "\n",
+              "probability": 0.1047363430261612
+            },
+            {
+              "token": " located",
+              "probability": 0.09724440425634384
+            },
+            {
+              "token": " __",
+              "probability": 0.04539984464645386
+            },
+            {
+              "token": " Paris",
+              "probability": 0.026481494307518005
+            },
+            {
+              "token": " ___",
+              "probability": 0.023007521405816078
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.018632058054208755
+            },
+            {
+              "token": " characterized",
+              "probability": 0.017778834328055382
+            }
+          ]
+        }
+      }
+    },
+    {
+      "prompt": "The most widely spoken language in Rome is",
+      "paris_answer": "French",
+      "rome_answer": "Italian",
+      "methods": {
+        "clean": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 0.2430383265018463,
+          "paris_side_probability": 0.003346994984894991,
+          "rome_minus_paris_answer_logit": 4.28515625,
+          "top10": [
+            {
+              "token": " Italian",
+              "probability": 0.2430383265018463
+            },
+            {
+              "token": " \n",
+              "probability": 0.15691733360290527
+            },
+            {
+              "token": "  \n",
+              "probability": 0.12707553803920746
+            },
+            {
+              "token": "\n",
+              "probability": 0.1045294851064682
+            },
+            {
+              "token": " __",
+              "probability": 0.03830432891845703
+            },
+            {
+              "token": " Spanish",
+              "probability": 0.036124423146247864
+            },
+            {
+              "token": " English",
+              "probability": 0.027161836624145508
+            },
+            {
+              "token": " ___",
+              "probability": 0.023506609722971916
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.016668682917952538
+            },
+            {
+              "token": " Latin",
+              "probability": 0.01559772901237011
+            }
+          ]
+        },
+        "direct_w": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 0.23835010826587677,
+          "paris_side_probability": 0.00119114201515913,
+          "rome_minus_paris_answer_logit": 5.298828125,
+          "top10": [
+            {
+              "token": " Italian",
+              "probability": 0.23835010826587677
+            },
+            {
+              "token": " \n",
+              "probability": 0.15877540409564972
+            },
+            {
+              "token": "  \n",
+              "probability": 0.1401187926530838
+            },
+            {
+              "token": "\n",
+              "probability": 0.10955173522233963
+            },
+            {
+              "token": " __",
+              "probability": 0.039368242025375366
+            },
+            {
+              "token": " Spanish",
+              "probability": 0.029485447332262993
+            },
+            {
+              "token": " English",
+              "probability": 0.024539967998862267
+            },
+            {
+              "token": " ___",
+              "probability": 0.024159511551260948
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.016669562086462975
+            },
+            {
+              "token": " Latin",
+              "probability": 0.014942497946321964
+            }
+          ]
+        },
+        "pullback": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 0.23379366099834442,
+          "paris_side_probability": 0.0004995744675397873,
+          "rome_minus_paris_answer_logit": 6.1484375,
+          "top10": [
+            {
+              "token": " Italian",
+              "probability": 0.23379366099834442
+            },
+            {
+              "token": " \n",
+              "probability": 0.16708479821681976
+            },
+            {
+              "token": "  \n",
+              "probability": 0.12810835242271423
+            },
+            {
+              "token": "\n",
+              "probability": 0.11755883693695068
+            },
+            {
+              "token": " __",
+              "probability": 0.04550035670399666
+            },
+            {
+              "token": " Spanish",
+              "probability": 0.02960764802992344
+            },
+            {
+              "token": " English",
+              "probability": 0.0265401229262352
+            },
+            {
+              "token": " ___",
+              "probability": 0.0244499072432518
+            },
+            {
+              "token": " Latin",
+              "probability": 0.02091311477124691
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.016097398474812508
+            }
+          ]
+        },
+        "reverse_pullback": {
+          "rome_side_answer": " Italian",
+          "paris_side_answer": " French",
+          "rome_side_probability": 0.23943890631198883,
+          "paris_side_probability": 0.03140754997730255,
+          "rome_minus_paris_answer_logit": 2.03125,
+          "top10": [
+            {
+              "token": " Italian",
+              "probability": 0.23943890631198883
+            },
+            {
+              "token": " \n",
+              "probability": 0.1396634876728058
+            },
+            {
+              "token": "  \n",
+              "probability": 0.12039744108915329
+            },
+            {
+              "token": "\n",
+              "probability": 0.08842939883470535
+            },
+            {
+              "token": " Spanish",
+              "probability": 0.037589915096759796
+            },
+            {
+              "token": " __",
+              "probability": 0.033564016222953796
+            },
+            {
+              "token": " French",
+              "probability": 0.03140754997730255
+            },
+            {
+              "token": " English",
+              "probability": 0.02624198980629444
+            },
+            {
+              "token": " ___",
+              "probability": 0.021086031571030617
+            },
+            {
+              "token": "\n\n",
+              "probability": 0.01616722159087658
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
