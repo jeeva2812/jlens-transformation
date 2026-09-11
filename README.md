@@ -47,9 +47,10 @@ one from `camilablank/workspace-lenses`; the others are computed here.
 | null: 30 random draws, mean ± sd | −0.03 ± 0.17 | +0.04 ± 0.14 | +0.00 ± 0.14 |
 | pullback, z against that null | **+20.0** | **+35.7** | **+46.0** |
 
-**1. The transport is worth about 1.3--1.7x, not an order of magnitude.** Most of
-the causal effect a J-Lens vector has is already present in the raw unembedding
-row. This is the number the paper's framing does not let you read off.
+**1. The transport is worth 1.3--1.7x at these layers -- but that is its worst
+case.** Most of the causal effect a J-Lens vector has is already present in the
+raw unembedding row. See result 5: the advantage is a monotone function of depth,
+worth 4x early and 1.07x next to the target layer.
 
 **2. No single singular direction of `J` is the concept.** Truncating to the top
 component recovers 15% / 2% / −2% of the full pullback; the top 64 recover
@@ -81,6 +82,38 @@ means the intervention nudges unrelated geography rather than moving one concept
 cleanly. A single random draw, which is what this script used before, would have
 hidden it.
 
+**The verdict depends on the word list, which is itself the finding.** Result 6
+repeats this control with four-to-five-word lists instead of three-word ones and
+gives Qwen the *cleanest* separation of the three models. Both measurements are
+real; they disagree because at this effect size the specificity verdict is
+sensitive to a hand-made judgement call. Quote the ratio, not a zero, and say the
+lists matter.
+
+**5. The advantage decays monotonically with depth, and the endpoint is forced.**
+Sweeping six contrasts across seven layers (`jlens/contrast_sweep.py`): the
+pullback beats the no-Jacobian baseline in **113 of 120 cells**, and beats all 10
+random draws in 120/120. Six of the seven exceptions are all six OLMo contrasts at
+layer 30 -- that lens's target layer, where `J` is exactly the identity and the
+ratio is exactly 1.0000. Three of the six contrasts are non-geographic
+(doctor-lawyer, summer-winter, red-blue). Median ratio by layer on Qwen3.5-4B:
+
+| layer | 4 | 8 | 12 | 16 | 21 | 25 | 28 |
+|---|---|---|---|---|---|---|---|
+| `w` alone | 0.17 | 0.30 | 0.57 | 0.92 | 3.37 | 6.79 | 9.01 |
+| `J.T w` | 0.55 | 1.01 | 1.49 | 1.81 | 4.39 | 7.79 | 9.70 |
+| **ratio** | **4.06** | **3.33** | **2.63** | **1.97** | 1.30 | 1.13 | **1.07** |
+
+`J` at the target layer is exactly the identity, so ratio -> 1 there is forced by
+construction, not discovered. What is measured is the shape in between. The
+trade-off: the transport matters most exactly where the intervention has the least
+absolute effect.
+
+**6. Headroom is not the explanation.** Regressing each token's induced shift on
+its clean log-probability across the whole vocabulary gives `r` = -0.015 / -0.105
+/ -0.074. Headroom-corrected contrasts are identical to raw ones to three decimals
+(Italy-France +0.997 / +1.765 / +1.442). On-target movement is **3-9x the worst
+off-target contrast** -- a ratio, not clean separation.
+
 ## Reproduce
 
 Re-check every number above against the saved results (no model inference, ~1s):
@@ -102,7 +135,7 @@ PYTHONPATH=. .venv/bin/python -m jlens.contrastive_logit_steering \
 Rebuild the figures (aggregates saved JSON, runs no model):
 
 ```bash
-MPLCONFIGDIR=/tmp/mpl PYTHONPATH=. .venv/bin/python -m jlens.application_core_figs
+MPLCONFIGDIR=/tmp/mpl PYTHONPATH=. .venv/bin/python -m jlens.final_figs
 ```
 
 Check the lens implementation itself:
@@ -125,6 +158,9 @@ PYTHONPATH=. .venv/bin/python tests/test_lens_padding.py
 | `jlens/pullback_rank.py` | spectral truncation sweep |
 | `jlens/pullback_corpus.py` | does the corpus `J` is estimated on matter? |
 | `jlens/subspace_meaning.py` | topic concentration in the leading subspace |
+| `jlens/contrast_sweep.py` | six contrasts x seven layers; is it a Rome/Paris artefact? |
+| `jlens/headroom.py` | vocabulary-wide regression of shift on clean log-probability |
+| `jlens/final_figs.py` | the five write-up figures, from saved JSON only |
 | `tests/` | correctness of the Jacobian itself |
 | `docs/JLENS_HANDOFF.md` | the four conventions that must be right, none of which fail loudly |
 | `docs/POSITION_IS_THE_VARIABLE.md` | position and dose protocol; these dominate everything |
@@ -134,8 +170,10 @@ PYTHONPATH=. .venv/bin/python tests/test_lens_padding.py
 
 ## Known limits
 
-- One contrast (`Rome − Paris`), one layer per model. No layer sweep in this
-  experiment, and no second contrast at the same rigour.
+- The headline table is one contrast at one layer per model. `contrast_sweep.py`
+  covers six contrasts across seven layers, but with a 10-draw null rather than 30
+  and on generic rather than city prompts, so its absolute sizes are not
+  comparable with the headline table.
 - The null is 30 matched-norm random draws at one dose. `pullback_robustness.py`
   is the version that also sweeps dose.
 - The direction is added at *every* token position. Position dominates steering

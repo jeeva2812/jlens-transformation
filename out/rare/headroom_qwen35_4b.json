@@ -1,0 +1,360 @@
+{
+  "config": {
+    "model": "Qwen/Qwen3.5-4B",
+    "lens": "/Users/sjeeva/.cache/huggingface/hub/models--camilablank--workspace-lenses/snapshots/d740106d1e0f95456dc8718fba2895e9c8ffd6ef/qwen3.5-4b/j-lens/lens.pt",
+    "layer": 21,
+    "scale_json": "out/rare/qwen35_4b_pullback_robustness.json",
+    "dose": 0.15,
+    "device": "mps",
+    "dtype": "float16",
+    "out": "out/rare/headroom_qwen35_4b.json"
+  },
+  "headroom_fit": {
+    "intercept": -0.15241342782974243,
+    "slope": -0.009734557941555977,
+    "r": -0.10470223426818848,
+    "residual_sd": 0.17340901494026184,
+    "n_tokens": 248320,
+    "note": "shift = intercept + slope * clean log p(token), fit over all vocabulary tokens with log p > -25"
+  },
+  "groups": {
+    "target_rome": {
+      "words_used": [
+        "Rome"
+      ],
+      "n": 1,
+      "mean_base_logprob": -6.988710403442383,
+      "raw_shift": 2.1959636211395264,
+      "headroom_predicted_shift": -0.08438142389059067,
+      "residual": 2.280345045030117,
+      "z_vs_vocabulary_residuals": 13.150095142491177,
+      "per_word": {
+        "Rome": {
+          "base_logprob": -6.988710403442383,
+          "shift": 2.1959636211395264,
+          "residual": 2.2803449630737305
+        }
+      }
+    },
+    "target_paris": {
+      "words_used": [
+        "Paris"
+      ],
+      "n": 1,
+      "mean_base_logprob": -6.104269504547119,
+      "raw_shift": -2.6722004413604736,
+      "headroom_predicted_shift": -0.09299106150865555,
+      "residual": -2.579209379851818,
+      "z_vs_vocabulary_residuals": -14.87355995154195,
+      "per_word": {
+        "Paris": {
+          "base_logprob": -6.104269504547119,
+          "shift": -2.6722004413604736,
+          "residual": -2.579209327697754
+        }
+      }
+    },
+    "italy_heldout": {
+      "words_used": [
+        "Italy",
+        "Italian",
+        "Italians",
+        "Roman",
+        "Romans",
+        "Vatican",
+        "Milan",
+        "Venice",
+        "Naples",
+        "Florence",
+        "pizza",
+        "pasta"
+      ],
+      "n": 12,
+      "mean_base_logprob": -10.55556869506836,
+      "raw_shift": 0.6640197038650513,
+      "headroom_predicted_shift": -0.04965962469577789,
+      "residual": 0.7136793285608292,
+      "z_vs_vocabulary_residuals": 14.256800406885832,
+      "per_word": {
+        "Italy": {
+          "base_logprob": -7.6316142082214355,
+          "shift": 1.0052083730697632,
+          "residual": 1.0833314657211304
+        },
+        "Italian": {
+          "base_logprob": -9.878521919250488,
+          "shift": 0.6476237177848816,
+          "residual": 0.7038741111755371
+        },
+        "Italians": {
+          "base_logprob": -14.504488945007324,
+          "shift": 0.623138427734375,
+          "residual": 0.6343570947647095
+        },
+        "Roman": {
+          "base_logprob": -9.8495512008667,
+          "shift": 1.4578450918197632,
+          "residual": 1.514377474784851
+        },
+        "Romans": {
+          "base_logprob": -12.3676176071167,
+          "shift": 1.2771810293197632,
+          "residual": 1.3092011213302612
+        },
+        "Vatican": {
+          "base_logprob": -11.272564888000488,
+          "shift": 0.8416340947151184,
+          "residual": 0.8843140602111816
+        },
+        "Milan": {
+          "base_logprob": -8.551861763000488,
+          "shift": -0.02897135354578495,
+          "residual": 0.04019348323345184
+        },
+        "Venice": {
+          "base_logprob": -8.029726028442383,
+          "shift": 0.1500651091337204,
+          "residual": 0.2243126928806305
+        },
+        "Naples": {
+          "base_logprob": -9.0902738571167,
+          "shift": 0.6744791865348816,
+          "residual": 0.7384028434753418
+        },
+        "Florence": {
+          "base_logprob": -8.337669372558594,
+          "shift": 0.1800130158662796,
+          "residual": 0.251262903213501
+        },
+        "pizza": {
+          "base_logprob": -13.25597095489502,
+          "shift": 0.5718968510627747,
+          "residual": 0.5952692627906799
+        },
+        "pasta": {
+          "base_logprob": -13.89697265625,
+          "shift": 0.5681228637695312,
+          "residual": 0.5852553844451904
+        }
+      }
+    },
+    "france_heldout": {
+      "words_used": [
+        "France",
+        "French",
+        "Versailles",
+        "Lyon",
+        "Marseille",
+        "Bordeaux"
+      ],
+      "n": 6,
+      "mean_base_logprob": -9.650156021118164,
+      "raw_shift": -1.110049843788147,
+      "headroom_predicted_shift": -0.05847342312335968,
+      "residual": -1.0515764206647873,
+      "z_vs_vocabulary_residuals": -14.854046988608973,
+      "per_word": {
+        "France": {
+          "base_logprob": -7.26279878616333,
+          "shift": -1.2600911855697632,
+          "residual": -1.1783778667449951
+        },
+        "French": {
+          "base_logprob": -8.985130310058594,
+          "shift": -1.6974283456802368,
+          "residual": -1.6324812173843384
+        },
+        "Versailles": {
+          "base_logprob": -10.363059997558594,
+          "shift": -0.9773762822151184,
+          "residual": -0.9258426427841187
+        },
+        "Lyon": {
+          "base_logprob": -9.8847074508667,
+          "shift": -0.80908203125,
+          "residual": -0.7528918385505676
+        },
+        "Marseille": {
+          "base_logprob": -10.623558044433594,
+          "shift": -0.8926188349723816,
+          "residual": -0.843621015548706
+        },
+        "Bordeaux": {
+          "base_logprob": -10.7816801071167,
+          "shift": -1.0237020254135132,
+          "residual": -0.9762434959411621
+        }
+      }
+    },
+    "control_japan": {
+      "words_used": [
+        "Japan",
+        "Japanese",
+        "Tokyo",
+        "Osaka",
+        "sushi"
+      ],
+      "n": 5,
+      "mean_base_logprob": -9.719457626342773,
+      "raw_shift": -0.1726832091808319,
+      "headroom_predicted_shift": -0.05779881402850151,
+      "residual": -0.1148843951523304,
+      "z_vs_vocabulary_residuals": -1.481406933792079,
+      "per_word": {
+        "Japan": {
+          "base_logprob": -7.5430731773376465,
+          "shift": 0.0927734375,
+          "residual": 0.17175838351249695
+        },
+        "Japanese": {
+          "base_logprob": -10.221946716308594,
+          "shift": -0.2063802033662796,
+          "residual": -0.153472900390625
+        },
+        "Tokyo": {
+          "base_logprob": -7.6226630210876465,
+          "shift": -0.5930989384651184,
+          "residual": -0.5148887634277344
+        },
+        "Osaka": {
+          "base_logprob": -9.4608793258667,
+          "shift": -0.19775390625,
+          "residual": -0.13743795454502106
+        },
+        "sushi": {
+          "base_logprob": -13.748723030090332,
+          "shift": 0.04104359820485115,
+          "residual": 0.05961928144097328
+        }
+      }
+    },
+    "control_china": {
+      "words_used": [
+        "China",
+        "Chinese",
+        "Beijing",
+        "Shanghai"
+      ],
+      "n": 4,
+      "mean_base_logprob": -8.168357849121094,
+      "raw_shift": -0.1149902269244194,
+      "headroom_predicted_shift": -0.07289807498455048,
+      "residual": -0.04209215193986893,
+      "z_vs_vocabulary_residuals": -0.48546670949453663,
+      "per_word": {
+        "China": {
+          "base_logprob": -7.197695255279541,
+          "shift": 0.3518880307674408,
+          "residual": 0.4342350661754608
+        },
+        "Chinese": {
+          "base_logprob": -9.8925199508667,
+          "shift": 0.0485026054084301,
+          "residual": 0.10461673140525818
+        },
+        "Beijing": {
+          "base_logprob": -7.594505310058594,
+          "shift": -0.3248697817325592,
+          "residual": -0.24638551473617554
+        },
+        "Shanghai": {
+          "base_logprob": -7.988710880279541,
+          "shift": -0.5354817509651184,
+          "residual": -0.46083489060401917
+        }
+      }
+    },
+    "control_spain": {
+      "words_used": [
+        "Spain",
+        "Spanish",
+        "Madrid",
+        "Barcelona"
+      ],
+      "n": 4,
+      "mean_base_logprob": -8.525169372558594,
+      "raw_shift": -0.0235188826918602,
+      "headroom_predicted_shift": -0.06942467391490936,
+      "residual": 0.045905791223049164,
+      "z_vs_vocabulary_residuals": 0.5294510350440936,
+      "per_word": {
+        "Spain": {
+          "base_logprob": -7.562929630279541,
+          "shift": 0.4231770932674408,
+          "residual": 0.5019687414169312
+        },
+        "Spanish": {
+          "base_logprob": -9.651145935058594,
+          "shift": 0.1725260466337204,
+          "residual": 0.23098984360694885
+        },
+        "Madrid": {
+          "base_logprob": -8.3915433883667,
+          "shift": -0.3134765625,
+          "residual": -0.2427510917186737
+        },
+        "Barcelona": {
+          "base_logprob": -8.4950590133667,
+          "shift": -0.3763020932674408,
+          "residual": -0.30658429861068726
+        }
+      }
+    },
+    "control_germany": {
+      "words_used": [
+        "Germany",
+        "German",
+        "Berlin",
+        "Munich",
+        "Hamburg"
+      ],
+      "n": 5,
+      "mean_base_logprob": -8.38288402557373,
+      "raw_shift": -0.21634113788604736,
+      "headroom_predicted_shift": -0.0708097591996193,
+      "residual": -0.14553137868642807,
+      "z_vs_vocabulary_residuals": -1.876592492692617,
+      "per_word": {
+        "Germany": {
+          "base_logprob": -7.8204169273376465,
+          "shift": 0.2392578125,
+          "residual": 0.31554293632507324
+        },
+        "German": {
+          "base_logprob": -9.405052185058594,
+          "shift": -0.0673828125,
+          "residual": -0.006523407995700836
+        },
+        "Berlin": {
+          "base_logprob": -7.01963472366333,
+          "shift": -0.6969401240348816,
+          "residual": -0.6128597259521484
+        },
+        "Munich": {
+          "base_logprob": -8.945904731750488,
+          "shift": -0.2111002653837204,
+          "residual": -0.14577126502990723
+        },
+        "Hamburg": {
+          "base_logprob": -8.723411560058594,
+          "shift": -0.3455403745174408,
+          "residual": -0.27804550528526306
+        }
+      }
+    }
+  },
+  "contrasts": {
+    "italy_minus_france": {
+      "raw": 1.7740695476531982,
+      "headroom_corrected": 1.7652557492256165
+    },
+    "japan_minus_china": {
+      "raw": -0.057692982256412506,
+      "headroom_corrected": -0.07279224321246147
+    },
+    "spain_minus_germany": {
+      "raw": 0.19282225519418716,
+      "headroom_corrected": 0.19143716990947723
+    }
+  }
+}
