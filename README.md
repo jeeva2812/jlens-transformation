@@ -114,6 +114,32 @@ its clean log-probability across the whole vocabulary gives `r` = -0.015 / -0.10
 (Italy-France +0.997 / +1.765 / +1.442). On-target movement is **3-9x the worst
 off-target contrast** -- a ratio, not clean separation.
 
+**7. Averaging the Jacobian costs less than the sharpest criticism of the method
+implies -- and how much it costs is measurable in advance.** The per-prompt
+pullbacks `v_p = J_p^T w` come from the same single backward pass as the averaged
+estimate; `lens.py` computes them and sums them away. Keeping them
+(`jlens/pointwise.py`) and steering each prompt with its own, scored only on
+itself, at matched norm:
+
+| condition | SmolLM2-135M | Qwen3.5-4B |
+|---|---|---|
+| `own` (this prompt's Jacobian) | **3.495** | **5.240** |
+| `loo_avg` (average, this prompt left out) | 3.230 | 5.155 |
+| `saved_lens` (the averaged object) | 3.301 | 4.863 |
+| `mismatched` (another prompt's Jacobian) | 2.739 | 4.491 |
+| `direct_w` | 1.895 | 3.717 |
+| `random` | -0.025 | -0.023 |
+
+Prompt-specific structure is real: another prompt's Jacobian costs 22% / 14%, and
+10/12 and 11/12 prompts prefer their own. But the leave-one-out average recovers
+nearly all of it -- `own` wins by only +8% / +1.6%, in 8/12 and 7/12 prompts.
+Averaging behaves like a shrinkage estimator.
+
+Mean pairwise cosine between the per-prompt pullbacks is 0.674 / 0.735 here, where
+the chess arm's two regimes sat at 0.21. So averaging costs little when the prompts
+share a computation and a lot when they do not, and that cosine is a one-backward-
+pass diagnostic for which regime you are in.
+
 ## Reproduce
 
 Re-check every number above against the saved results (no model inference, ~1s):
@@ -160,6 +186,7 @@ PYTHONPATH=. .venv/bin/python tests/test_lens_padding.py
 | `jlens/subspace_meaning.py` | topic concentration in the leading subspace |
 | `jlens/contrast_sweep.py` | six contrasts x seven layers; is it a Rome/Paris artefact? |
 | `jlens/headroom.py` | vocabulary-wide regression of shift on clean log-probability |
+| `jlens/pointwise.py` | per-prompt Jacobians vs their average; what averaging costs |
 | `jlens/final_figs.py` | the five write-up figures, from saved JSON only |
 | `tests/` | correctness of the Jacobian itself |
 | `docs/JLENS_HANDOFF.md` | the four conventions that must be right, none of which fail loudly |
