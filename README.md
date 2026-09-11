@@ -140,6 +140,45 @@ the chess arm's two regimes sat at 0.21. So averaging costs little when the prom
 share a computation and a lot when they do not, and that cosine is a one-backward-
 pass diagnostic for which regime you are in.
 
+**8. `J` tracks computational regime, not topic -- and conditioning on regime is a
+free improvement.** Prediction written before the run (`jlens/regime.py`): two
+English prose sets on different subjects will give near-identical `J_p` once
+centred, while prose vs code or English vs French will separate. `food_fr` is a
+literal translation of `food_en`, so the design reduces to one comparison.
+Centring matters: `J = prod(I + A_k)` puts the same identity term in every `J_p`
+and inflates all raw cosines.
+
+Centred mean pairwise cosine:
+
+| comparison | SmolLM2-135M | Qwen3.5-4B |
+|---|---|---|
+| food_en within group | +0.303 | +0.223 |
+| **food_en vs abstract_en** (different topic) | **+0.070** | **-0.024** |
+| food_en vs food_fr (different language) | -0.229 | -0.115 |
+| food_en vs code (different regime) | -0.263 | -0.175 |
+
+Changing the subject of an English prose prompt barely moves `J`; translating the
+same sentence moves it 3-5x as far. That retro-explains chess at 0.21 and code at
+0.51 -- both regime differences, never topic ones.
+
+Causally, grouping the per-prompt pullbacks by regime before averaging:
+
+| condition | SmolLM2 | Qwen3.5-4B |
+|---|---|---|
+| `own` (oracle) | 7.03 | 6.62 |
+| **`own_group_loo`** (regime-conditional) | **6.58** | **6.17** |
+| `global_loo` (current method) | 5.54 | 5.60 |
+| `other_group` (wrong regime) | 3.93 | 4.63 |
+| `direct_w` | 2.66 | 4.26 |
+| conditional beats global | 17/20 | 19/20 |
+
+A regime-conditional lens is +19% / +10% over the global one and closes 70% / 56%
+of the gap to the oracle, at no extra cost -- same backward pass, you just group
+before averaging. Confound: prompt lengths are not matched across groups. Against
+length being the driver: on Qwen food_en (8-9 tokens) and food_fr (9-11) are
+nearly matched and still separate; the two *long* groups (food_fr, code) are the
+most dissimilar pair (-0.255); and the short groups have high within-group cosine.
+
 ## Reproduce
 
 Re-check every number above against the saved results (no model inference, ~1s):
@@ -187,6 +226,7 @@ PYTHONPATH=. .venv/bin/python tests/test_lens_padding.py
 | `jlens/contrast_sweep.py` | six contrasts x seven layers; is it a Rome/Paris artefact? |
 | `jlens/headroom.py` | vocabulary-wide regression of shift on clean log-probability |
 | `jlens/pointwise.py` | per-prompt Jacobians vs their average; what averaging costs |
+| `jlens/regime.py` | does `J` track topic or computational regime? |
 | `jlens/final_figs.py` | the five write-up figures, from saved JSON only |
 | `tests/` | correctness of the Jacobian itself |
 | `docs/JLENS_HANDOFF.md` | the four conventions that must be right, none of which fail loudly |
