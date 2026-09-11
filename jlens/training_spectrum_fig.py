@@ -94,9 +94,10 @@ def main():
                color=colour, label=f"layer {L}")
     ax.axhline(0, color=MUTED, lw=.9)
     ax.axvspan(dip - .5, dip + .5, color=RED, alpha=.10, zorder=0)
-    ax.annotate("largest rebound after pretraining,\non the same boundary F7 flags\n"
-                "(ctx 5k also rises, ~2.3× smaller)",
-                xy=(dip - .2, .045), xytext=(2.6, -.27), fontsize=7.2, color=RED,
+    ax.annotate("both stage boundaries re-heat the LR.\n"
+                "mid-training: 96\u00d7 temperature jump, 0 warmup\n"
+                "long-context: 200-step warmup, smaller rise",
+                xy=(dip - .2, .045), xytext=(2.3, -.27), fontsize=7.0, color=RED,
                 ha="left", va="center",
                 arrowprops=dict(arrowstyle="->", color=RED, lw=1,
                                 connectionstyle="arc3,rad=0.25"))
@@ -113,8 +114,10 @@ def main():
                  fontsize=12, color=INK, x=.005, y=.985, ha="left")
     fig.text(.005, .005,
              "Every quantity here is computable from a single checkpoint: no comparison to the "
-             "final model, nothing pinned to 1.0 by construction. J^T is the gradient propagator, "
-             "so |λ| > 1 is an amplifying — and exploding-gradient — channel.",
+             "final model, nothing pinned to 1.0 by construction. J^T is the gradient propagator, so |λ| > 1 is an "
+             "amplifying — and exploding-gradient — channel. Stage boundaries from Olmo 3 paper Table 35 "
+             "(arXiv:2512.13961): midtraining restarts the LR at 2.074e-4 from a pretraining final LR of 3.0e-5, "
+             "with 0 warmup steps and half the batch.",
              fontsize=7, color=MUTED)
     fig.tight_layout(rect=[0, .04, 1, .90])
     OUT.mkdir(parents=True, exist_ok=True)

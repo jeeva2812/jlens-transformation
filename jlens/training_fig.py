@@ -70,8 +70,9 @@ def main():
     ax.axhline(chance, color=RED, ls=":", lw=1)
     ax.text(0.1, chance + .028, f"chance {chance:.3f}", color=RED, fontsize=7.5)
     ax.axvspan(dip - .35, dip + .35, color=RED, alpha=.10, zorder=0)
-    ax.annotate("all three bands\nfall back here",
-                xy=(dip, .53), xytext=(dip - 3.4, .80), fontsize=7.5, color=RED,
+    ax.annotate("all three bands fall back here\nLR jumps 3e-5 \u2192 2.07e-4 with\n"
+                "ZERO warmup, batch halves\n(Olmo 3 paper, Table 35)",
+                xy=(dip, .55), xytext=(dip - 5.2, .84), fontsize=6.8, color=RED,
                 arrowprops=dict(arrowstyle="->", color=RED, lw=1))
     ax.text(len(order) - 1.05, .32, "final point is\n1.0 by construction",
             fontsize=6.8, color=MUTED, ha="right")
