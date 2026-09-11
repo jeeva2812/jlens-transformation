@@ -101,11 +101,11 @@ def main():
     ax.set_xlabel("layer")
     ax.set_ylabel("change in similarity to final\nacross the boundary")
     n_dip = sum(v < 0 for v in deltas)
-    ax.annotate("the 3 that do not dip\nare nearest the target,\nwhere J \u2192 identity",
-                xy=(len(layers_all) - 2.0, -.0015), xytext=(0.2, -.0465),
+    ax.annotate("3 exceptions:\nnearest the target,\nwhere J \u2192 I",
+                xy=(len(layers_all) - 2.0, -.0015), xytext=(0.0, -.0385),
                 fontsize=7.2, color=MUTED, va="center", ha="left",
                 arrowprops=dict(arrowstyle="->", color=MUTED, lw=.9,
-                                connectionstyle="arc3,rad=-0.25"))
+                                connectionstyle="arc3,rad=-0.3"))
     ax.set_title(f"B · The setback is not one layer: {n_dip} of {len(layers_all)} dip\n"
                  "end of pretraining \u2192 mid-training step 8k, every layer measured",
                  fontsize=9.5, color=INK, loc="left")
