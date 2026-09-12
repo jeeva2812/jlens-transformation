@@ -94,10 +94,12 @@ def main():
         adjacent = [matrix[i][i + 1] for i in range(len(layers_used) - 1)]
         far = [matrix[i][j] for i in range(len(layers_used))
                for j in range(len(layers_used)) if abs(i - j) >= 5]
+        # "adjacent" = index gap 1 = 2 real layers, since layers step by 2.
+        # "far" = index gap >= 5 = 10 or more real layers apart.
         result["models"][name]["adjacent_mean"] = sum(adjacent) / len(adjacent)
         result["models"][name]["far_mean"] = sum(far) / len(far)
-        print(f"{name:8s}  adjacent layers {sum(adjacent)/len(adjacent):.4f}   "
-              f"|Δlayer| >= 5: {sum(far)/len(far):.4f}   "
+        print(f"{name:8s}  2 layers apart {sum(adjacent)/len(adjacent):.4f}   "
+              f">=10 layers apart {sum(far)/len(far):.4f}   "
               f"(chance {chance['mean']:.4f})")
 
     # --- figure -------------------------------------------------------------
