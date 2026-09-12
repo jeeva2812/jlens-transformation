@@ -12,7 +12,7 @@ Qwen3.5-4B lens from
 and 11 OLMo-3-7B checkpoints. Every headline result is backed by a checked-in
 JSON artifact and an offline verifier.
 
-**Start with the [interactive results overview](docs/results.html)** or run
+**Start with the [interactive results overview](https://jeeva2812.github.io/jlens-mats/)** or run
 `./.venv/bin/python verify.py` to check the quoted numbers without downloading a
 model.
 
