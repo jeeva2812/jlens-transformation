@@ -55,7 +55,6 @@ def main():
     ax.axhline(chance, color=RED, ls="--", lw=1.2)
     ax.text(.2, chance + .004, f"measured chance {chance:.4f}", fontsize=7.2, color=RED)
     ax.axvspan(spike - .4, spike + .4, color=GOLD, alpha=.13, zorder=0)
-    ax.axvspan(dip - .4, dip + .4, color=RED, alpha=.13, zorder=0)
     ax.annotate("post-pretraining stages\nsteadily re-share",
                 xy=(len(labels) - 2, far[-2]), xytext=(4.0, .098),
                 fontsize=7.2, color=MUTED,
@@ -69,7 +68,6 @@ def main():
     ax = axes[2]
     ax.plot(list(x), flat, "s-", color=GOLD, lw=2, ms=4.5)
     ax.axvspan(spike - .4, spike + .4, color=GOLD, alpha=.13, zorder=0)
-    ax.axvspan(dip - .4, dip + .4, color=RED, alpha=.13, zorder=0)
     ax.annotate("sharpens once, early, then flat —\nso it does not explain\nthe mid-training bump",
                 xy=(dip, flat[dip]), xytext=(2.2, .78), fontsize=7.2, color=MUTED,
                 arrowprops=dict(arrowstyle="->", color=MUTED, lw=.9))
