@@ -121,19 +121,19 @@
     <p>Each application claim lands on an executable module and a compact checked-in result.</p>
   </div>
   <section class="finding-grid">
-    <article class="panel finding"><h3>SVD directions can steer</h3><p>Readable axes are rare, but one gender direction flips generated pronouns.</p><a href="../jlens/gender_axis.py">code</a> · <a href="../out/rare/gender_axis.json">JSON</a></article>
-    <article class="panel finding"><h3>Jᵀ is a useful pullback</h3><p>It transports a precisely specified logit objective back to the source layer.</p><a href="../jlens/contrastive_logit_steering.py">code</a> · <a href="../out/rare/qwen35_4b_rome_paris.json">JSON</a></article>
-    <article class="panel finding"><h3>The effect is slot-like</h3><p>The intervention moves valid city-name slots, not beliefs about France or Italy.</p><a href="../jlens/contrastive_fact_generation.py">code</a> · <a href="../out/rare/qwen35_4b_rome_paris_facts.json">JSON</a></article>
-    <article class="panel finding"><h3>Structure forms during training</h3><p>Strong directions appear first; nearby layers share more transport subspace.</p><a href="../jlens/training_fig.py">code</a> · <a href="../out/rare/layer_subspaces_traj.json">JSON</a></article>
+    <article class="panel finding"><h3>SVD directions can steer</h3><p>Readable axes are rare, but one gender direction flips generated pronouns.</p><a href="https://github.com/jeeva2812/jlens-mats/blob/main/jlens/gender_axis.py">code</a> · <a href="https://github.com/jeeva2812/jlens-mats/blob/main/out/rare/gender_axis.json">JSON</a></article>
+    <article class="panel finding"><h3>Jᵀ is a useful pullback</h3><p>It transports a precisely specified logit objective back to the source layer.</p><a href="https://github.com/jeeva2812/jlens-mats/blob/main/jlens/contrastive_logit_steering.py">code</a> · <a href="https://github.com/jeeva2812/jlens-mats/blob/main/out/rare/qwen35_4b_rome_paris.json">JSON</a></article>
+    <article class="panel finding"><h3>The effect is slot-like</h3><p>The intervention moves valid city-name slots, not beliefs about France or Italy.</p><a href="https://github.com/jeeva2812/jlens-mats/blob/main/jlens/contrastive_fact_generation.py">code</a> · <a href="https://github.com/jeeva2812/jlens-mats/blob/main/out/rare/qwen35_4b_rome_paris_facts.json">JSON</a></article>
+    <article class="panel finding"><h3>Structure forms during training</h3><p>Strong directions appear first; nearby layers share more transport subspace.</p><a href="https://github.com/jeeva2812/jlens-mats/blob/main/jlens/training_fig.py">code</a> · <a href="https://github.com/jeeva2812/jlens-mats/blob/main/out/rare/layer_subspaces_traj.json">JSON</a></article>
   </section>
 
   <div class="section-head"><h2>Training views</h2><p>Figures regenerate from saved experiment summaries; no model inference is required.</p></div>
   <section class="gallery">
-    <figure class="panel"><img src="../out/figs_final/fig6_training_subspace.png" alt="OLMo training subspace formation across checkpoints"><figcaption>Reading subspaces form gradually and briefly regress at the mid-training transition.</figcaption></figure>
-    <figure class="panel"><img src="../out/figs_final/fig9_layer_subspaces_traj.png" alt="Cross-layer transport subspace overlap through training"><figcaption>Nearby layers share much more of their transport subspaces than distant layers.</figcaption></figure>
+    <figure class="panel"><img src="assets/fig6_training_subspace.png" alt="OLMo training subspace formation across checkpoints"><figcaption>Reading subspaces form gradually and briefly regress at the mid-training transition.</figcaption></figure>
+    <figure class="panel"><img src="assets/fig9_layer_subspaces_traj.png" alt="Cross-layer transport subspace overlap through training"><figcaption>Nearby layers share much more of their transport subspaces than distant layers.</figcaption></figure>
   </section>
 
-  <footer>Numbers are read from the checked-in artifacts under <code>out/rare/</code>. Run <code>./.venv/bin/python verify.py</code> from the repository root for the offline consistency check.</footer>
+  <footer>Numbers are read from the checked-in artifacts under <code>out/rare/</code>. Run <code>./.venv/bin/python verify.py</code> from the <a href="https://github.com/jeeva2812/jlens-mats">research repository</a> for the offline consistency check.</footer>
 </main>
 <script>
 const NS = "http://www.w3.org/2000/svg";

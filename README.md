@@ -26,7 +26,7 @@ model.
    directions at the same layer, position policy, and intervention strength.
 3. **Auditable outputs.** Compact JSON results are checked into `out/rare/`,
    `verify.py` checks the headline numbers offline, and the figures plus
-   [`docs/results.html`](docs/results.html) connect each claim to its code and
+   [`docs/index.html`](docs/index.html) connect each claim to its code and
    evidence.
 
 ## Main findings
