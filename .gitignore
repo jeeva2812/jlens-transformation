@@ -1,7 +1,11 @@
 __pycache__/
 *.py[cod]
 .venv/
-out/
+out/*
+# Small, model-free inputs used to rebuild the training figures.
+!out/birth.json
+!out/eigen_training.json
+!out/svd_training.json
 *.pt
 *.npz
 .DS_Store

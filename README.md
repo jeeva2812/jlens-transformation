@@ -1,252 +1,178 @@
-# What is the Jacobian in J-Lens actually buying you?
+# How much can we push J-Lens?
 
-A J-Lens vector for token `t` is row `t` of `W_U J_l`, which is the same object as
+This repository is the reproducibility companion to my J-Lens investigation. It
+asks two questions:
 
-```text
-v_t = J_l.T @ W_U[t]
-```
+1. Does an SVD of the Jacobian lens expose usable, interpretable directions?
+2. How does the lens's structure form as a language model trains?
 
-So J-Lens steering is *already* steering with `J` transpose applied to a direction
-in logit space. The original paper never measures what that transport step is
-worth, because it never steers with `W_U[t]` on its own.
+The experiments use SmolLM2-135M for rapid iteration, the published
+Qwen3.5-4B lens from
+[`camilablank/workspace-lenses`](https://huggingface.co/camilablank/workspace-lenses),
+and 11 OLMo-3-7B checkpoints. Every headline result is backed by a checked-in
+JSON artifact and an offline verifier.
 
-This repo runs that missing control, on open models, at matched intervention norm.
+**Start with the [interactive results overview](docs/results.html)** or run
+`./.venv/bin/python verify.py` to check the quoted numbers without downloading a
+model.
 
-## The experiment, in one block
+## Experimental setup
 
-Write the objective you want directly in logit space. Nothing else is used to
-build it -- no Italy token, no France token, no word list:
+1. **Three model scales, one shared question.** SmolLM2-135M provides a fast
+   iteration loop, Qwen3.5-4B tests the published J-Lens artifact, and 11
+   OLMo-3-7B checkpoints expose how the same structure changes during training.
+2. **Matched causal comparisons.** Every steering claim compares `Jᵀw` against
+   the raw logit direction `w`, its sign-reversed control, and matched-norm random
+   directions at the same layer, position policy, and intervention strength.
+3. **Auditable outputs.** Compact JSON results are checked into `out/rare/`,
+   `verify.py` checks the headline numbers offline, and the figures plus
+   [`docs/results.html`](docs/results.html) connect each claim to its code and
+   evidence.
+
+## Main findings
+
+### 1. SVD directions are causally strong, but rarely readable
+
+For `J = U Σ Vᵀ`, the columns of `U` live in the target-layer space and can
+be decoded with the unembedding; columns of `V` live in the source-layer space
+and can be injected. On SmolLM2-135M, the top eight SVD directions are about
+5–6× more steerable than matched PCA directions. One readable gender direction
+can flip generated pronouns, but most individual directions decode to
+punctuation or token fragments.
+
+- Code: [`jlens/gender_axis.py`](jlens/gender_axis.py)
+- Result: [`out/rare/gender_axis.json`](out/rare/gender_axis.json)
+- Generation examples: [`out/rare/gender_generations.json`](out/rare/gender_generations.json)
+
+### 2. The Jacobian is an efficient pullback operator
+
+Write an objective directly in logit space:
 
 ```text
 w = normalize(W_U[" Rome"] - W_U[" Paris"])
 ```
 
-Then compare, all injected at the same layer with the same L2 norm:
+Then inject either `w` or `Jᵀw` at identical L2 norm. The pullback is worth
+1.3–1.7× at the headline layers and beats a 30-draw matched-norm random null by
+20–46 standard deviations.
 
-| direction | what it tests |
-|---|---|
-| `w` | logit-lens baseline: no Jacobian at all |
-| `J.T @ w` | the J-Lens pullback |
-| `-(J.T @ w)` | sign control |
-| `V[:, :k] @ (S * U.T @ w)[:k]` | keep only the top `k` singular components of `J` |
-| a random vector | matched-norm null |
+| model | layer | `w` | `Jᵀw` | ratio | null mean ± sd |
+|---|---:|---:|---:|---:|---:|
+| SmolLM2-135M | 20 | +1.89 | **+3.30** | 1.74× | −0.03 ± 0.17 |
+| Qwen3.5-4B | 21 | +3.72 | **+4.87** | 1.31× | +0.04 ± 0.14 |
+| OLMo-3-7B | 22 | +4.07 | **+6.54** | 1.61× | +0.00 ± 0.14 |
 
-Metric: mean change in `logit(" Rome") - logit(" Paris")`, over 12 neutral prompts
-that name no city.
+This is a token-slot bias, not a belief edit: the induced Rome−Paris shift is
+nearly independent of whether the clean model preferred Rome or Paris. A
+specified target is also spread across hundreds of singular components; the
+top component recovers 15% / 2% / −2% of the full effect.
 
-## Results
+- Core experiment: [`jlens/contrastive_logit_steering.py`](jlens/contrastive_logit_steering.py)
+- Rank ablation: [`jlens/pullback_rank.py`](jlens/pullback_rank.py)
+- Belief-vs-slot prompts: [`jlens/contrastive_fact_generation.py`](jlens/contrastive_fact_generation.py)
+- Results: [`SmolLM2`](out/rare/smollm_rome_paris.json),
+  [`Qwen3.5`](out/rare/qwen35_4b_rome_paris.json),
+  [`OLMo-3`](out/rare/olmo3_7b_rome_paris.json)
 
-Three models, three independently produced lenses. The Qwen lens is the published
-one from `camilablank/workspace-lenses`; the others are computed here.
+### 3. The pullback advantage shrinks monotonically with depth
 
-| direction | SmolLM2-135M (L20) | Qwen3.5-4B (L21) | OLMo-3-7B (L22) |
-|---|---|---|---|
-| `w` (no Jacobian) | +1.89 | +3.72 | +4.07 |
-| **`J.T @ w` (pullback)** | **+3.30** | **+4.87** | **+6.54** |
-| `-(J.T @ w)` | −2.79 | −4.36 | −6.53 |
-| null: 30 random draws, mean ± sd | −0.03 ± 0.17 | +0.04 ± 0.14 | +0.00 ± 0.14 |
-| pullback, z against that null | **+20.0** | **+35.7** | **+46.0** |
+Across six contrasts and six or seven layers per model, `Jᵀw` beats `w` in
+113/120 cells and beats all ten random draws in 120/120. Six of the seven
+exceptions are at OLMo layer 30, the lens target layer, where `J = I` and the
+ratio is forced to one.
 
-**1. The transport is worth 1.3--1.7x at these layers -- but that is its worst
-case.** Most of the causal effect a J-Lens vector has is already present in the
-raw unembedding row. See result 5: the advantage is a monotone function of depth,
-worth 4x early and 1.07x next to the target layer.
+- Code: [`jlens/contrast_sweep.py`](jlens/contrast_sweep.py)
+- Results: [`SmolLM2`](out/rare/sweep_smollm2.json),
+  [`Qwen3.5`](out/rare/sweep_qwen35_4b.json),
+  [`OLMo-3`](out/rare/sweep_olmo3_7b.json)
+- Figure: [`out/figs_final/fig4_contrast_layer_sweep.png`](out/figs_final/fig4_contrast_layer_sweep.png)
 
-**2. No single singular direction of `J` is the concept.** Truncating to the top
-component recovers 15% / 2% / −2% of the full pullback; the top 64 recover
-72% / 27% / 18%. The objective is spread across hundreds of individually
-mediocre components, so `J`'s spectrum is not a concept dictionary.
+### 4. J-Lens structure forms gradually during training
 
-**3. It is a token-slot bias, not a belief edit.** On eight real factual prompts,
-the pullback raises `Rome − Paris` by a near-constant amount regardless of what
-the model believed: `corr(clean logit gap, induced shift)` = +0.01 / −0.43 / +0.09.
-It moves "The capital of France is" and "The Colosseum is located in" by the same
-amount. The only prompts it leaves alone are the ones where neither city name is
-a grammatical answer ("A person from Paris is called ___").
+The OLMo checkpoint series shows strong directions appearing before weaker
+ones. Nearby layers share substantially more of their top-64 transport
+subspaces than distant layers (0.50 versus 0.079 in the final model). Several
+statistics break at the mid-training boundary, where the learning rate and data
+mixture change abruptly; this is descriptive evidence, not a causal claim.
 
-**4. Specificity is relative, not absolute — and one model leaks.** Held-out
-Italy-vs-France tokens (`Italy, Italian, Roman, Vatican` vs `France, French`) were
-never used to build `w`, and they move +1.27 / +2.47 / +2.23 (z = +13 / +22 / +26).
-Two unrelated geographic contrasts are the controls, scored against the same
-30-draw null:
-
-| control | SmolLM2-135M | Qwen3.5-4B | OLMo-3-7B |
-|---|---|---|---|
-| Japan-vs-China | −0.01 (z −0.5) | −0.26 (**z −2.2**) | −0.11 (z −1.0) |
-| Spain-vs-Germany | +0.11 (z +0.8) | +0.27 (**z +2.0**) | +0.19 (z +1.9) |
-
-On SmolLM2 and OLMo the controls sit inside the null. **On Qwen3.5-4B they do
-not** — both exceed all 30 random draws. The leak is small (about 5% of the
-on-target contrast and 12% of the Italy-vs-France effect) but it is real, and it
-means the intervention nudges unrelated geography rather than moving one concept
-cleanly. A single random draw, which is what this script used before, would have
-hidden it.
-
-**The verdict depends on the word list, which is itself the finding.** Result 6
-repeats this control with four-to-five-word lists instead of three-word ones and
-gives Qwen the *cleanest* separation of the three models. Both measurements are
-real; they disagree because at this effect size the specificity verdict is
-sensitive to a hand-made judgement call. Quote the ratio, not a zero, and say the
-lists matter.
-
-**5. The advantage decays monotonically with depth, and the endpoint is forced.**
-Sweeping six contrasts across seven layers (`jlens/contrast_sweep.py`): the
-pullback beats the no-Jacobian baseline in **113 of 120 cells**, and beats all 10
-random draws in 120/120. Six of the seven exceptions are all six OLMo contrasts at
-layer 30 -- that lens's target layer, where `J` is exactly the identity and the
-ratio is exactly 1.0000. Three of the six contrasts are non-geographic
-(doctor-lawyer, summer-winter, red-blue). Median ratio by layer on Qwen3.5-4B:
-
-| layer | 4 | 8 | 12 | 16 | 21 | 25 | 28 |
-|---|---|---|---|---|---|---|---|
-| `w` alone | 0.17 | 0.30 | 0.57 | 0.92 | 3.37 | 6.79 | 9.01 |
-| `J.T w` | 0.55 | 1.01 | 1.49 | 1.81 | 4.39 | 7.79 | 9.70 |
-| **ratio** | **4.06** | **3.33** | **2.63** | **1.97** | 1.30 | 1.13 | **1.07** |
-
-`J` at the target layer is exactly the identity, so ratio -> 1 there is forced by
-construction, not discovered. What is measured is the shape in between. The
-trade-off: the transport matters most exactly where the intervention has the least
-absolute effect.
-
-**6. Headroom is not the explanation.** Regressing each token's induced shift on
-its clean log-probability across the whole vocabulary gives `r` = -0.015 / -0.105
-/ -0.074. Headroom-corrected contrasts are identical to raw ones to three decimals
-(Italy-France +0.997 / +1.765 / +1.442). On-target movement is **3-9x the worst
-off-target contrast** -- a ratio, not clean separation.
-
-**7. Averaging the Jacobian costs less than the sharpest criticism of the method
-implies -- and how much it costs is measurable in advance.** The per-prompt
-pullbacks `v_p = J_p^T w` come from the same single backward pass as the averaged
-estimate; `lens.py` computes them and sums them away. Keeping them
-(`jlens/pointwise.py`) and steering each prompt with its own, scored only on
-itself, at matched norm:
-
-| condition | SmolLM2-135M | Qwen3.5-4B |
-|---|---|---|
-| `own` (this prompt's Jacobian) | **3.495** | **5.240** |
-| `loo_avg` (average, this prompt left out) | 3.230 | 5.155 |
-| `saved_lens` (the averaged object) | 3.301 | 4.863 |
-| `mismatched` (another prompt's Jacobian) | 2.739 | 4.491 |
-| `direct_w` | 1.895 | 3.717 |
-| `random` | -0.025 | -0.023 |
-
-Prompt-specific structure is real: another prompt's Jacobian costs 22% / 14%, and
-10/12 and 11/12 prompts prefer their own. But the leave-one-out average recovers
-nearly all of it -- `own` wins by only +8% / +1.6%, in 8/12 and 7/12 prompts.
-Averaging behaves like a shrinkage estimator.
-
-Mean pairwise cosine between the per-prompt pullbacks is 0.674 / 0.735 here, where
-the chess arm's two regimes sat at 0.21. So averaging costs little when the prompts
-share a computation and a lot when they do not, and that cosine is a one-backward-
-pass diagnostic for which regime you are in.
-
-**8. `J` tracks computational regime, not topic -- and conditioning on regime is a
-free improvement.** Prediction written before the run (`jlens/regime.py`): two
-English prose sets on different subjects will give near-identical `J_p` once
-centred, while prose vs code or English vs French will separate. `food_fr` is a
-literal translation of `food_en`, so the design reduces to one comparison.
-Centring matters: `J = prod(I + A_k)` puts the same identity term in every `J_p`
-and inflates all raw cosines.
-
-Centred mean pairwise cosine:
-
-| comparison | SmolLM2-135M | Qwen3.5-4B |
-|---|---|---|
-| food_en within group | +0.303 | +0.223 |
-| **food_en vs abstract_en** (different topic) | **+0.070** | **-0.024** |
-| food_en vs food_fr (different language) | -0.229 | -0.115 |
-| food_en vs code (different regime) | -0.263 | -0.175 |
-
-Changing the subject of an English prose prompt barely moves `J`; translating the
-same sentence moves it 3-5x as far. That retro-explains chess at 0.21 and code at
-0.51 -- both regime differences, never topic ones.
-
-Causally, grouping the per-prompt pullbacks by regime before averaging:
-
-| condition | SmolLM2 | Qwen3.5-4B |
-|---|---|---|
-| `own` (oracle) | 7.03 | 6.62 |
-| **`own_group_loo`** (regime-conditional) | **6.58** | **6.17** |
-| `global_loo` (current method) | 5.54 | 5.60 |
-| `other_group` (wrong regime) | 3.93 | 4.63 |
-| `direct_w` | 2.66 | 4.26 |
-| conditional beats global | 17/20 | 19/20 |
-
-A regime-conditional lens is +19% / +10% over the global one and closes 70% / 56%
-of the gap to the oracle, at no extra cost -- same backward pass, you just group
-before averaging. Confound: prompt lengths are not matched across groups. Against
-length being the driver: on Qwen food_en (8-9 tokens) and food_fr (9-11) are
-nearly matched and still separate; the two *long* groups (food_fr, code) are the
-most dissimilar pair (-0.255); and the short groups have high within-group cosine.
+- Spectrum over training: [`jlens/training_spectrum_fig.py`](jlens/training_spectrum_fig.py)
+- Subspace formation: [`jlens/training_fig.py`](jlens/training_fig.py)
+- Cross-layer overlap: [`jlens/layer_subspaces.py`](jlens/layer_subspaces.py)
+- Checkpoint trajectory: [`jlens/layer_subspaces_traj.py`](jlens/layer_subspaces_traj.py)
+- Results: [`out/rare/layer_subspaces.json`](out/rare/layer_subspaces.json) and
+  [`out/rare/layer_subspaces_traj.json`](out/rare/layer_subspaces_traj.json)
 
 ## Reproduce
 
-Re-check every number above against the saved results (no model inference, ~1s):
+### Fast path: verify saved results
+
+This performs no model inference and normally finishes in about a second:
 
 ```bash
-python verify.py
+./.venv/bin/python verify.py
 ```
 
-Recompute one model end to end:
+### Rebuild the application figures
 
 ```bash
-PYTHONPATH=. .venv/bin/python -m jlens.contrastive_logit_steering \
-  --model Qwen/Qwen3.5-4B --layer 21 \
-  --lens <path to workspace-lenses qwen3.5-4b/j-lens/lens.pt> \
-  --scale-json out/rare/qwen35_4b_pullback_robustness.json \
-  --out out/rare/qwen35_4b_rome_paris.json
+MPLCONFIGDIR=/tmp/jlens-mpl PYTHONPATH=. \
+  ./.venv/bin/python -m jlens.rebuild_figures
 ```
 
-Rebuild the figures (aggregates saved JSON, runs no model):
+### Recompute one model end to end
+
+The command below requires model weights and a J-Lens checkpoint:
 
 ```bash
-MPLCONFIGDIR=/tmp/mpl PYTHONPATH=. .venv/bin/python -m jlens.final_figs
+PYTHONPATH=. ./.venv/bin/python -m jlens.contrastive_logit_steering \
+  --model Qwen/Qwen3.5-4B \
+  --layer 21 \
+  --lens <path-to-workspace-lenses>/qwen3.5-4b/j-lens/lens.pt \
+  --scale-json out/rare/qwen35_4b_rome_paris.json \
+  --out /tmp/qwen35_4b_rome_paris_recomputed.json
 ```
 
-Check the lens implementation itself:
+The scripts in `tests/` are model-dependent numerical checks, not lightweight
+unit tests: they may download weights and need substantial memory. The offline
+`verify.py` check is the intended first validation.
 
-```bash
-PYTHONPATH=. .venv/bin/python tests/test_lens_math.py        # VJP shortcut == brute force
-PYTHONPATH=. .venv/bin/python tests/test_identity_at_target.py
-PYTHONPATH=. .venv/bin/python tests/test_multilayer.py
-PYTHONPATH=. .venv/bin/python tests/test_lens_padding.py
+## Claim-to-evidence map
+
+| application claim | implementation | checked-in output | figure |
+|---|---|---|---|
+| SVD directions can steer | [`gender_axis.py`](jlens/gender_axis.py) | [`gender_axis.json`](out/rare/gender_axis.json) | interactive overview |
+| `Jᵀw` beats the raw logit direction | [`contrastive_logit_steering.py`](jlens/contrastive_logit_steering.py) | [`*_rome_paris.json`](out/rare/qwen35_4b_rome_paris.json) | [`fig1`](out/figs_final/fig1_jacobian_vs_logitlens.png) |
+| The push is slot-like, not belief-like | [`contrastive_fact_generation.py`](jlens/contrastive_fact_generation.py) | [`*_facts.json`](out/rare/qwen35_4b_rome_paris_facts.json) | [`fig2`](out/figs_final/fig2_slot_not_belief.png) |
+| A concept is distributed across the spectrum | [`pullback_rank.py`](jlens/pullback_rank.py) | headline JSON above | [`fig3`](out/figs_final/fig3_spectrum.png) |
+| Advantage decreases with depth | [`contrast_sweep.py`](jlens/contrast_sweep.py) | [`sweep_*.json`](out/rare/sweep_qwen35_4b.json) | [`fig4`](out/figs_final/fig4_contrast_layer_sweep.png) |
+| Headroom does not explain the shift | [`headroom.py`](jlens/headroom.py) | [`headroom_*.json`](out/rare/headroom_qwen35_4b.json) | [`fig5`](out/figs_final/fig5_headroom.png) |
+| Structure emerges through training | [`training_fig.py`](jlens/training_fig.py) | checkpoint summaries | [`fig6`](out/figs_final/fig6_training_subspace.png) |
+| Nearby layers share subspaces | [`layer_subspaces_traj.py`](jlens/layer_subspaces_traj.py) | [`layer_subspaces_traj.json`](out/rare/layer_subspaces_traj.json) | [`fig9`](out/figs_final/fig9_layer_subspaces_traj.png) |
+
+## Repository layout
+
+```text
+jlens/          maintained experiment and figure code
+tests/          model-dependent numerical correctness checks
+out/rare/       curated JSON results used by verify.py
+out/figs_final/ application-ready figures rebuilt from saved JSON
+docs/           methods notes, limitations, and interactive results
+_attic/         exploratory and negative-result code kept for provenance
 ```
 
-## Layout
+`out/` is ignored by default because local model runs can exceed 100 GB. Only the
+small, curated results and final figures already committed to Git are part of
+the reproducibility surface. Large lens tensors (`*.pt`) remain local.
 
-| path | what |
-|---|---|
-| `jlens/lens.py` | computing `J`; one backward pass gives every layer |
-| `jlens/contrastive_logit_steering.py` | the experiment above |
-| `jlens/pullback_steer.py` | word-set version of the same objective, held-out scoring |
-| `jlens/pullback_robustness.py` | dose sweep, 30 random draws per cell |
-| `jlens/pullback_rank.py` | spectral truncation sweep |
-| `jlens/pullback_corpus.py` | does the corpus `J` is estimated on matter? |
-| `jlens/subspace_meaning.py` | topic concentration in the leading subspace |
-| `jlens/contrast_sweep.py` | six contrasts x seven layers; is it a Rome/Paris artefact? |
-| `jlens/headroom.py` | vocabulary-wide regression of shift on clean log-probability |
-| `jlens/pointwise.py` | per-prompt Jacobians vs their average; what averaging costs |
-| `jlens/regime.py` | does `J` track topic or computational regime? |
-| `jlens/final_figs.py` | the five write-up figures, from saved JSON only |
-| `tests/` | correctness of the Jacobian itself |
-| `docs/JLENS_HANDOFF.md` | the four conventions that must be right, none of which fail loudly |
-| `docs/POSITION_IS_THE_VARIABLE.md` | position and dose protocol; these dominate everything |
-| `docs/MASTER_REPORT_terse.md` | full record of every arm tried, including the negatives |
-| `out/rare/*.json` | saved results `verify.py` and the figure scripts read |
-| `_attic/` | earlier arms, kept out of the way; see `_attic/README.md` |
+## Methodological cautions
 
-## Known limits
-
-- The headline table is one contrast at one layer per model. `contrast_sweep.py`
-  covers six contrasts across seven layers, but with a 10-draw null rather than 30
-  and on generic rather than city prompts, so its absolute sizes are not
-  comparable with the headline table.
-- The null is 30 matched-norm random draws at one dose. `pullback_robustness.py`
-  is the version that also sweeps dose.
-- The direction is added at *every* token position. Position dominates steering
-  results (see `docs/POSITION_IS_THE_VARIABLE.md`); this choice is uniform across
-  arms so the comparison is fair, but the absolute sizes are not transferable.
-- Effect size tracks headroom. Any target-vs-control claim has to regress on the
-  base log-probability first, which the category controls above do not yet do.
-- Category membership (`Italy` vs `France` word lists) is a hand-written proxy
-  for a concept, chosen before the results were seen but not preregistered.
+- All steering comparisons use matched intervention norm; absolute effect sizes
+  are not comparable when layer, position policy, or dose changes.
+- The direction is added at every token position. Position often dominates the
+  result; see [`docs/POSITION_IS_THE_VARIABLE.md`](docs/POSITION_IS_THE_VARIABLE.md).
+- Category word lists are hand-written proxies for concepts. Qwen shows a small
+  but statistically detectable leak into unrelated geography.
+- The implementation conventions that fail silently are documented in
+  [`docs/JLENS_HANDOFF.md`](docs/JLENS_HANDOFF.md).
+- The complete experiment log, including negative results, lives in
+  [`docs/MASTER_REPORT_terse.md`](docs/MASTER_REPORT_terse.md).

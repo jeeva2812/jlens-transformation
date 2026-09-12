@@ -122,8 +122,20 @@ def main():
     full_energy = float(pullback.square().sum())
 
     scales_blob = json.loads(a.scale_json.read_text())
-    scales = scales_blob.get("scales", scales_blob.get("config", {}).get("scales", {}))
-    scale = float(scales.get(str(a.layer), scales.get(a.layer)))
+    # Accept either the robustness sweep (a mapping by layer) or a previously
+    # produced headline result (one ``residual_scale`` value).  The latter makes
+    # the checked-in example command self-contained on a fresh clone.
+    if "residual_scale" in scales_blob:
+        scale = float(scales_blob["residual_scale"])
+    else:
+        scales = scales_blob.get("scales", scales_blob.get("config", {}).get("scales", {}))
+        raw_scale = scales.get(str(a.layer), scales.get(a.layer))
+        if raw_scale is None:
+            raise ValueError(
+                f"{a.scale_json} has no residual scale for layer {a.layer}; "
+                "expected residual_scale or a scales mapping"
+            )
+        scale = float(raw_scale)
 
     @torch.inference_mode()
     def logits():
